@@ -11,6 +11,7 @@ namespace MailKit.Pooling.Sending;
 
 public sealed class SmtpSender : ISmtpSender
 {
+    private static readonly TimeSpan LeaseCleanupTimeout = TimeSpan.FromSeconds(1);
     private readonly SmtpPool pool;
     private readonly ISmtpErrorClassifier classifier;
     private readonly ISmtpPoolMetrics metrics;
@@ -63,7 +64,7 @@ public sealed class SmtpSender : ISmtpSender
             {
                 if (lease is not null)
                 {
-                    await lease.InvalidateAsync(CancellationToken.None).ConfigureAwait(false);
+                    await CompleteLeaseBestEffortAsync(lease, shouldDiscardConnection: true).ConfigureAwait(false);
                 }
 
                 throw;
@@ -83,11 +84,11 @@ public sealed class SmtpSender : ISmtpSender
                 {
                     if (classification.ShouldDiscardConnection)
                     {
-                        await lease.InvalidateAsync(cancellationToken).ConfigureAwait(false);
+                        await CompleteLeaseBestEffortAsync(lease, shouldDiscardConnection: true).ConfigureAwait(false);
                     }
                     else
                     {
-                        await lease.ReturnAsync(cancellationToken).ConfigureAwait(false);
+                        await CompleteLeaseBestEffortAsync(lease, shouldDiscardConnection: false).ConfigureAwait(false);
                     }
                 }
 
@@ -130,6 +131,23 @@ public sealed class SmtpSender : ISmtpSender
     {
         return classification.IsRetryAllowed
             && attempts <= options.MaxRetryAttempts;
+    }
+
+    private static async Task CompleteLeaseBestEffortAsync(
+        SmtpConnectionLease lease,
+        bool shouldDiscardConnection)
+    {
+        try
+        {
+            var completionTask = shouldDiscardConnection
+                ? lease.InvalidateAsync(CancellationToken.None).AsTask()
+                : lease.ReturnAsync(CancellationToken.None).AsTask();
+            await completionTask.WaitAsync(LeaseCleanupTimeout).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Preserve the original send outcome even when cleanup is slow or broken.
+        }
     }
 
     private static SmtpSendStage ResolveStage(Exception exception, bool failedBeforeLease)

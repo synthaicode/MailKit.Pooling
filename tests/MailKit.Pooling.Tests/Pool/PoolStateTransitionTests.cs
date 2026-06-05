@@ -127,6 +127,34 @@ public sealed class PoolStateTransitionTests
     }
 
     [Fact]
+    public async Task Snapshot_Tracks_Waiting_Callers_While_Acquire_Is_Blocked()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        factory.Enqueue(new FakeSmtpClientAdapter());
+
+        await using var pool = new SmtpPool(
+            CreateOptions(maxPoolSize: 1, acquireTimeout: TimeSpan.FromSeconds(10)),
+            factory,
+            clock);
+
+        var firstLease = await pool.AcquireLeaseAsync();
+        var blockedAcquire = pool.AcquireLeaseAsync();
+
+        await Task.Yield();
+        var waitingSnapshot = pool.GetSnapshot();
+
+        Assert.Equal(1, waitingSnapshot.WaitingCallers);
+
+        await firstLease.ReturnAsync();
+        var secondLease = await blockedAcquire;
+        await secondLease.ReturnAsync();
+
+        var settledSnapshot = pool.GetSnapshot();
+        Assert.Equal(0, settledSnapshot.WaitingCallers);
+    }
+
+    [Fact]
     public async Task Broken_Connection_Is_Not_Reused()
     {
         var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));

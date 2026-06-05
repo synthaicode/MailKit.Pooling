@@ -8,6 +8,8 @@ internal sealed class FakeSmtpClientAdapter : ISmtpClientAdapter
 
     public Func<object, CancellationToken, Task>? OnSendAsync { get; set; }
 
+    public Func<bool, CancellationToken, Task>? OnDisconnectAsync { get; set; }
+
     public bool IsConnected { get; set; } = true;
 
     public bool IsAuthenticated { get; set; } = true;
@@ -48,7 +50,7 @@ internal sealed class FakeSmtpClientAdapter : ISmtpClientAdapter
     {
         DisconnectCalls++;
         IsConnected = false;
-        return Task.CompletedTask;
+        return OnDisconnectAsync?.Invoke(quit, cancellationToken) ?? Task.CompletedTask;
     }
 
     public ValueTask DisposeAsync()

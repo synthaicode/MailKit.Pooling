@@ -159,6 +159,73 @@ public sealed class SmtpSenderTests
     }
 
     [Fact]
+    public async Task SendAsync_CallerCancellation_Does_Not_Block_On_Slow_LeaseCleanup()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        var sendStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new FakeSmtpClientAdapter
+        {
+            OnSendAsync = async (_, cancellationToken) =>
+            {
+                sendStarted.SetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            },
+            OnDisconnectAsync = static (_, _) => Task.Delay(Timeout.InfiniteTimeSpan),
+        };
+        factory.Enqueue(client);
+
+        var options = CreateOptions(sendTimeout: TimeSpan.FromSeconds(30), reconnectCooldown: TimeSpan.Zero);
+        await using var pool = new SmtpPool(options, factory, clock);
+        var sender = new SmtpSender(pool, new DefaultSmtpErrorClassifier(), options, clock);
+
+        using var cancellationTokenSource = new CancellationTokenSource();
+        var sendTask = sender.SendAsync(CreateMessage(), cancellationTokenSource.Token);
+        await sendStarted.Task;
+        cancellationTokenSource.Cancel();
+
+        var completedTask = await Task.WhenAny(sendTask, Task.Delay(TimeSpan.FromSeconds(2)));
+
+        Assert.Same(sendTask, completedTask);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await sendTask);
+    }
+
+    [Fact]
+    public async Task SendAsync_Preserves_Original_Failure_When_CallerCancellation_Races_With_Cleanup()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        using var cancellationTokenSource = new CancellationTokenSource();
+        var client = new FakeSmtpClientAdapter
+        {
+            OnSendAsync = (_, _) =>
+            {
+                cancellationTokenSource.Cancel();
+                return Task.FromException(
+                    new SmtpStageAwareException(
+                        "retryable failure",
+                        SmtpSendStage.EnvelopeStarted,
+                        new TimeoutException("socket timed out")));
+            },
+            OnDisconnectAsync = static (_, cancellationToken) => cancellationToken.IsCancellationRequested
+                ? Task.FromCanceled(cancellationToken)
+                : Task.CompletedTask,
+        };
+        factory.Enqueue(client);
+
+        var options = CreateOptions(sendTimeout: TimeSpan.FromSeconds(30), reconnectCooldown: TimeSpan.Zero);
+        await using var pool = new SmtpPool(options, factory, clock);
+        var sender = new SmtpSender(pool, new DefaultSmtpErrorClassifier(), options, clock);
+
+        var exception = await Assert.ThrowsAsync<SmtpSendFailedException>(
+            () => sender.SendAsync(CreateMessage(), cancellationTokenSource.Token));
+
+        Assert.Equal(SmtpFailureKind.RetryableBeforeSend, exception.Classification.Kind);
+        Assert.Equal(SmtpSendStage.EnvelopeStarted, exception.Classification.Stage);
+        Assert.Equal(1, exception.Attempts);
+    }
+
+    [Fact]
     public async Task SendAsync_Retries_RetryableFailure_Within_Budget()
     {
         var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));

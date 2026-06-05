@@ -2,6 +2,7 @@ using MailKit.Pooling.Abstractions;
 using MailKit.Pooling.Errors;
 using MailKit.Pooling.Metrics;
 using MailKit.Pooling.Options;
+using System.Threading;
 
 namespace MailKit.Pooling.Pooling;
 
@@ -70,7 +71,7 @@ public sealed class SmtpPool : IAsyncDisposable
         await EnsureMinimumPoolSizeAsync(cancellationToken).ConfigureAwait(false);
 
         var deadline = clock.UtcNow + options.AcquireTimeout;
-        waitingCallers++;
+        Interlocked.Increment(ref waitingCallers);
 
         try
         {
@@ -211,7 +212,7 @@ public sealed class SmtpPool : IAsyncDisposable
         }
         finally
         {
-            waitingCallers--;
+            Interlocked.Decrement(ref waitingCallers);
         }
     }
 
@@ -229,7 +230,7 @@ public sealed class SmtpPool : IAsyncDisposable
                 connections.Count + pendingConnectionCreations,
                 idleConnectionIds.Count,
                 connections.Values.Count(static connection => connection.IsLeased),
-                waitingCallers,
+                Volatile.Read(ref waitingCallers),
                 GetNextCreationAllowedAtUnsafe());
         }
     }
