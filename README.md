@@ -30,7 +30,7 @@ It does not yet contain every planned operational feature or public observabilit
 The current MVP provides guarded SMTP pooling with:
 
 - MailKit-based connect, authenticate, send, and keepalive execution
-- single-host and basic multi-host endpoint configuration
+- single-host and multi-host endpoint configuration with priority and weight
 - `MinPoolSize`, `MaxPoolSize`, and `AcquireTimeout`
 - one-send-per-connection exclusivity
 - failed-connection disposal
@@ -79,6 +79,8 @@ services.AddMailKitPooling(options =>
         SecureSocketOptions = "StartTls",
         UserName = "smtp-user",
         Password = "smtp-password",
+        Priority = 0,
+        Weight = 3,
     });
 
     options.Hosts.Add(new SmtpHostOptions
@@ -88,6 +90,8 @@ services.AddMailKitPooling(options =>
         SecureSocketOptions = "StartTls",
         UserName = "smtp-user",
         Password = "smtp-password",
+        Priority = 10,
+        Weight = 1,
     });
 
     options.MinPoolSize = 0;
@@ -116,7 +120,7 @@ var result = await sender.SendAsync(message);
 Console.WriteLine($"Sent via {result.EndpointKey} in {result.Attempts} attempt(s).");
 ```
 
-If you only have one SMTP endpoint, configuring `options.Host` still works as a compatibility path. New configuration should prefer `options.Hosts`.
+If you only have one SMTP endpoint, configuring `options.Host` still works as a compatibility path. New configuration should prefer `options.Hosts`. Lower `Priority` values are preferred first. `Weight` applies within hosts that share the same `Priority`.
 
 ## Verification Notes
 
@@ -125,11 +129,21 @@ The repository includes:
 - fast unit and component tests
 - Docker-backed integration tests using `smtp4dev`
 - manual stress/resource tests gated behind `MAILKIT_POOLING_RUN_STRESS=1`
+- a dated validation record under `docs/verification/`
+
+The latest checked-in record is `docs/verification/2026-06-05-validation.md`.
+
+That record includes:
+
+- Docker-backed multi-host integration on two real SMTP endpoints
+- priority failover verification from `localhost:2525` to `localhost:2526`
+- weight distribution verification for a real `3:1` split
+- the latest manual stress/resource artifact references
 
 Recent manual stress/resource evidence against `smtp4dev` produced the following sample results on Windows:
 
-- naive per-send MailKit: 40 sends, 40 connection creations, 1125 ms, TIME_WAIT 14 -> 16
-- pooled sender: 40 sends, 8 connection creations, 311 ms, TIME_WAIT 16 -> 16
+- naive per-send MailKit: 40 sends, 40 connection creations, 1145 ms, TIME_WAIT 0 -> 1
+- pooled sender: 40 sends, 8 connection creations, 277 ms, TIME_WAIT 1 -> 1
 - reconnect suppression scenario: 8 reconnect attempts, 4 suppressed reconnects, 12 outage failures, 6 recovery successes, 4 final successes
 
 These numbers come from the generated JSON artifacts under `tests/MailKit.Pooling.StressTests/bin/Debug/net8.0/StressResults/` and should be treated as environment-specific observations, not universal benchmarks.

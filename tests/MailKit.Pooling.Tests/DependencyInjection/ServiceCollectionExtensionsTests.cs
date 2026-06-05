@@ -77,4 +77,20 @@ public sealed class ServiceCollectionExtensionsTests
             await provider.DisposeAsync();
         }
     }
+
+    [Fact]
+    public void AddMailKitPooling_Rejects_Non_Positive_Host_Weight()
+    {
+        var services = new ServiceCollection();
+
+        var exception = Assert.Throws<ArgumentException>(() => services.AddMailKitPooling(options =>
+        {
+            options.Hosts =
+            [
+                new SmtpHostOptions { Host = "smtp-a.local", Port = 2525, Weight = 0 },
+            ];
+        }));
+
+        Assert.Contains("Weight greater than zero", exception.Message);
+    }
 }

@@ -7,6 +7,8 @@ public sealed class SmtpHostOptions
     public string? UserName { get; set; }
     public string? Password { get; set; }
     public string SecureSocketOptions { get; set; } = "StartTlsWhenAvailable";
+    public int Priority { get; set; }
+    public int Weight { get; set; } = 1;
 
     public string ToEndpointKey()
     {

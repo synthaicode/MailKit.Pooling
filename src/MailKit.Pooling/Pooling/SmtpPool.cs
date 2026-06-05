@@ -17,7 +17,6 @@ public sealed class SmtpPool : IAsyncDisposable
     private readonly Dictionary<Guid, PooledConnection> connections = new();
     private readonly Queue<Guid> idleConnectionIds = new();
     private bool disposed;
-    private int nextHostIndex;
     private int pendingConnectionCreations;
     private int waitingCallers;
 
@@ -57,6 +56,11 @@ public sealed class SmtpPool : IAsyncDisposable
         if (hostStates.Length == 0)
         {
             throw new ArgumentException("At least one SMTP host must be configured.", nameof(options));
+        }
+
+        if (hostStates.Any(static state => state.Host.Weight <= 0))
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), "Each configured SMTP host must have Weight greater than zero.");
         }
     }
 
@@ -540,27 +544,59 @@ public sealed class SmtpPool : IAsyncDisposable
 
     private bool TrySelectHostForCreation(DateTimeOffset now, out HostRuntimeState? selectedHost)
     {
-        for (var offset = 0; offset < hostStates.Length; offset++)
+        List<HostRuntimeState>? eligibleHosts = null;
+        var bestPriority = int.MaxValue;
+
+        foreach (var candidate in hostStates)
         {
-            var index = (nextHostIndex + offset) % hostStates.Length;
-            var candidate = hostStates[index];
             if (candidate.NextCreationAllowedAt is { } nextAllowedAt && now < nextAllowedAt)
             {
                 continue;
             }
 
-            nextHostIndex = (index + 1) % hostStates.Length;
-            selectedHost = candidate;
-            return true;
+            if (candidate.Host.Priority > bestPriority)
+            {
+                continue;
+            }
+
+            if (candidate.Host.Priority < bestPriority)
+            {
+                eligibleHosts = [];
+                bestPriority = candidate.Host.Priority;
+            }
+
+            eligibleHosts ??= [];
+            eligibleHosts.Add(candidate);
         }
 
-        selectedHost = null;
-        return false;
+        if (eligibleHosts is null || eligibleHosts.Count == 0)
+        {
+            selectedHost = null;
+            return false;
+        }
+
+        var totalWeight = 0;
+        HostRuntimeState? bestHost = null;
+        foreach (var candidate in eligibleHosts)
+        {
+            candidate.CurrentWeight += candidate.Host.Weight;
+            totalWeight += candidate.Host.Weight;
+
+            if (bestHost is null || candidate.CurrentWeight > bestHost.CurrentWeight)
+            {
+                bestHost = candidate;
+            }
+        }
+
+        bestHost!.CurrentWeight -= totalWeight;
+        selectedHost = bestHost;
+        return true;
     }
 
     private void ApplyCooldown(HostRuntimeState hostState, DateTimeOffset nextAllowedAt)
     {
         hostState.NextCreationAllowedAt = nextAllowedAt;
+        hostState.CurrentWeight = 0;
     }
 
     private DateTimeOffset? GetNextCreationAllowedAt()
@@ -631,5 +667,7 @@ public sealed class SmtpPool : IAsyncDisposable
         public string EndpointKey { get; }
 
         public DateTimeOffset? NextCreationAllowedAt { get; set; }
+
+        public int CurrentWeight { get; set; }
     }
 }

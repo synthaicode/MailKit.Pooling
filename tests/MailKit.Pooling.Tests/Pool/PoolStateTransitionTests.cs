@@ -237,6 +237,74 @@ public sealed class PoolStateTransitionTests
     }
 
     [Fact]
+    public async Task Lower_Priority_Hosts_Are_Not_Selected_While_Higher_Priority_Hosts_Are_Healthy()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        factory.Enqueue(new FakeSmtpClientAdapter { EndpointKey = "smtp-primary.local:2525" });
+        factory.Enqueue(new FakeSmtpClientAdapter { EndpointKey = "smtp-primary.local:2525" });
+
+        await using var pool = new SmtpPool(
+            CreateMultiHostOptions(
+                maxPoolSize: 2,
+                reconnectCooldown: TimeSpan.Zero,
+                hosts:
+                [
+                    new SmtpHostOptions { Host = "smtp-primary.local", Port = 2525, Priority = 0, Weight = 1 },
+                    new SmtpHostOptions { Host = "smtp-secondary.local", Port = 2526, Priority = 10, Weight = 1 },
+                ]),
+            factory,
+            clock);
+
+        var lease1 = await pool.AcquireLeaseAsync();
+        var lease2 = await pool.AcquireLeaseAsync();
+
+        Assert.Equal(
+            ["smtp-primary.local:2525", "smtp-primary.local:2525"],
+            factory.RequestedHosts);
+
+        await lease1.ReturnAsync();
+        await lease2.ReturnAsync();
+    }
+
+    [Fact]
+    public async Task Equal_Priority_Hosts_Use_Weighted_Distribution()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        factory.Enqueue(new FakeSmtpClientAdapter { EndpointKey = "smtp-a.local:2525" });
+        factory.Enqueue(new FakeSmtpClientAdapter { EndpointKey = "smtp-a.local:2525" });
+        factory.Enqueue(new FakeSmtpClientAdapter { EndpointKey = "smtp-b.local:2526" });
+        factory.Enqueue(new FakeSmtpClientAdapter { EndpointKey = "smtp-a.local:2525" });
+
+        await using var pool = new SmtpPool(
+            CreateMultiHostOptions(
+                maxPoolSize: 4,
+                reconnectCooldown: TimeSpan.Zero,
+                hosts:
+                [
+                    new SmtpHostOptions { Host = "smtp-a.local", Port = 2525, Priority = 0, Weight = 3 },
+                    new SmtpHostOptions { Host = "smtp-b.local", Port = 2526, Priority = 0, Weight = 1 },
+                ]),
+            factory,
+            clock);
+
+        var lease1 = await pool.AcquireLeaseAsync();
+        var lease2 = await pool.AcquireLeaseAsync();
+        var lease3 = await pool.AcquireLeaseAsync();
+        var lease4 = await pool.AcquireLeaseAsync();
+
+        Assert.Equal(
+            ["smtp-a.local:2525", "smtp-a.local:2525", "smtp-b.local:2526", "smtp-a.local:2525"],
+            factory.RequestedHosts);
+
+        await lease1.ReturnAsync();
+        await lease2.ReturnAsync();
+        await lease3.ReturnAsync();
+        await lease4.ReturnAsync();
+    }
+
+    [Fact]
     public async Task KeepAlive_Is_Executed_For_Stale_Idle_Connections()
     {
         var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
@@ -375,14 +443,18 @@ public sealed class PoolStateTransitionTests
 
     private static SmtpPoolOptions CreateMultiHostOptions(
         int maxPoolSize = 1,
-        TimeSpan? reconnectCooldown = null)
+        TimeSpan? reconnectCooldown = null,
+        IReadOnlyList<SmtpHostOptions>? hosts = null)
     {
         return new SmtpPoolOptions
         {
             Hosts =
             [
-                new SmtpHostOptions { Host = "smtp-a.local", Port = 2525 },
-                new SmtpHostOptions { Host = "smtp-b.local", Port = 2526 },
+                .. (hosts ??
+                [
+                    new SmtpHostOptions { Host = "smtp-a.local", Port = 2525 },
+                    new SmtpHostOptions { Host = "smtp-b.local", Port = 2526 },
+                ]),
             ],
             MaxPoolSize = maxPoolSize,
             AcquireTimeout = TimeSpan.FromSeconds(15),

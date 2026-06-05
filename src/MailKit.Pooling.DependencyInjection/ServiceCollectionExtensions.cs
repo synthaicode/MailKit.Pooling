@@ -48,5 +48,10 @@ public static class ServiceCollectionExtensions
         {
             throw new ArgumentException("Each configured SMTP host must include Host.", nameof(options));
         }
+
+        if (hosts.Any(static host => host.Weight <= 0))
+        {
+            throw new ArgumentException("Each configured SMTP host must have Weight greater than zero.", nameof(options));
+        }
     }
 }

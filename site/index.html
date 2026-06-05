@@ -70,6 +70,8 @@ services.AddMailKitPooling(options =&gt;
         SecureSocketOptions = "StartTls",
         UserName = "smtp-user",
         Password = "smtp-password",
+        Priority = 0,
+        Weight = 3,
     });
 
     options.Hosts.Add(new SmtpHostOptions
@@ -79,6 +81,8 @@ services.AddMailKitPooling(options =&gt;
         SecureSocketOptions = "StartTls",
         UserName = "smtp-user",
         Password = "smtp-password",
+        Priority = 10,
+        Weight = 1,
     });
 
     options.MinPoolSize = 0;
@@ -107,7 +111,8 @@ var result = await sender.SendAsync(message);
 Console.WriteLine($"Sent via {result.EndpointKey} in {result.Attempts} attempt(s).");</code></pre>
       <p class="note">
         If you only have one SMTP endpoint, <code>options.Host</code> still works as a compatibility path.
-        New configuration should prefer <code>options.Hosts</code>.
+        New configuration should prefer <code>options.Hosts</code>. Lower <code>Priority</code> values are preferred first.
+        <code>Weight</code> applies within hosts that share the same <code>Priority</code>.
       </p>
     </section>
 
@@ -163,6 +168,8 @@ Console.WriteLine($"Sent via {result.EndpointKey} in {result.Attempts} attempt(s
           <tr><td><code>MaxRetryAttempts</code></td><td>Retry budget for explicitly retryable failures only.</td></tr>
           <tr><td><code>RetryBaseDelay</code></td><td>Base delay used for retry backoff.</td></tr>
           <tr><td><code>EnableMetrics</code></td><td>Emit metrics through the configured metrics implementation.</td></tr>
+          <tr><td><code>SmtpHostOptions.Priority</code></td><td>Prefer lower-priority hosts first for active-standby failover.</td></tr>
+          <tr><td><code>SmtpHostOptions.Weight</code></td><td>Distribute connections across hosts that share the same priority.</td></tr>
         </tbody>
       </table>
     </section>
@@ -186,11 +193,17 @@ Console.WriteLine($"Sent via {result.EndpointKey} in {result.Attempts} attempt(s
         <li>component tests</li>
         <li>Docker-backed <code>smtp4dev</code> integration tests</li>
         <li>manual stress/resource tests gated behind <code>MAILKIT_POOLING_RUN_STRESS=1</code></li>
+        <li>dated verification records under <code>docs/verification/</code></li>
+      </ul>
+      <p>Latest recorded verification also includes Docker-backed multi-host checks:</p>
+      <ul>
+        <li>priority failover from <code>localhost:2525</code> to <code>localhost:2526</code></li>
+        <li>real SMTP weight distribution verification for a <code>3:1</code> host split</li>
       </ul>
       <p>Recent manual observations on Windows against <code>smtp4dev</code>:</p>
       <ul>
-        <li>naive per-send MailKit: 40 sends, 40 connection creations, 1125 ms, TIME_WAIT 14 to 16</li>
-        <li>pooled sender: 40 sends, 8 connection creations, 311 ms, TIME_WAIT 16 to 16</li>
+        <li>naive per-send MailKit: 40 sends, 40 connection creations, 1145 ms, TIME_WAIT 0 to 1</li>
+        <li>pooled sender: 40 sends, 8 connection creations, 277 ms, TIME_WAIT 1 to 1</li>
         <li>reconnect suppression scenario: 8 reconnect attempts, 4 suppressed reconnects, 12 outage failures, 6 recovery successes, 4 final successes</li>
       </ul>
       <p class="note">
@@ -204,7 +217,7 @@ Console.WriteLine($"Sent via {result.EndpointKey} in {result.Attempts} attempt(s
         <li>The public metrics surface is not finalized yet.</li>
         <li>TIME_WAIT observation is Windows-first and not implemented for Linux or macOS.</li>
         <li>Stress/resource validation is manual, not part of the default fast test path.</li>
-        <li>Multi-host selection exists, but weighted routing, priority order, and broader circuit-breaker behavior remain future work.</li>
+        <li>Multi-host priority and weight exist, but broader circuit-breaker behavior and more advanced balancing policies remain future work.</li>
       </ul>
     </section>
   </main>
