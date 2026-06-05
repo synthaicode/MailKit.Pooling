@@ -292,6 +292,9 @@ catch (SmtpSendFailedException ex) when (ex.Classification.Kind == SmtpFailureKi
         <li>Stress/resource validation is manual, not part of the default fast test path.</li>
         <li>Multi-host priority and weight exist, but broader circuit-breaker behavior and more advanced balancing policies remain future work.</li>
       </ul>
+      <p class="note">
+        The intended telemetry contract is documented in <code>docs/operation/metrics-and-logging.md</code>.
+      </p>
     </section>
   </main>
 </body>

@@ -150,7 +150,7 @@ public sealed class NaiveVsPooledComparisonTests
             successes,
             failures,
             stopwatch.ElapsedMilliseconds,
-            (int) metrics.Sum(SmtpMetricNames.ConnectionsCreated),
+            (int) metrics.Sum(SmtpMetricNames.PoolConnectionsCreated),
             snapshot.LeasedConnections,
             snapshot.IdleConnections,
             metrics.ClassificationCounts(),

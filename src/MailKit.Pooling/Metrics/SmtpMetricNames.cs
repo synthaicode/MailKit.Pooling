@@ -2,17 +2,18 @@ namespace MailKit.Pooling.Metrics;
 
 public static class SmtpMetricNames
 {
-    public const string ConnectionsCreated = "smtp.connections.created";
-    public const string ConnectionsDisposed = "smtp.connections.disposed";
-    public const string ConnectionCreateAttempts = "smtp.connections.create_attempts";
-    public const string ConnectionCreateFailures = "smtp.connections.create_failures";
-    public const string ActiveConnections = "smtp.connections.active";
-    public const string IdleConnections = "smtp.connections.idle";
-    public const string AcquireTimeouts = "smtp.acquire.timeouts";
-    public const string SendSuccesses = "smtp.send.successes";
-    public const string SendFailures = "smtp.send.failures";
-    public const string Retries = "smtp.send.retries";
-    public const string ReconnectSuppressed = "smtp.reconnect.suppressed";
-    public const string ErrorClassifications = "smtp.errors.classified";
-    public const string KeepAliveFailures = "smtp.keepalive.failures";
+    public const string PoolConnectionsActive = "mailkit.pool.connections.active";
+    public const string PoolConnectionsIdle = "mailkit.pool.connections.idle";
+    public const string PoolAcquireWaitTime = "mailkit.pool.acquire.wait_time";
+    public const string PoolAcquireExhaustedCount = "mailkit.pool.acquire.exhausted.count";
+    public const string PoolConnectionsCreated = "mailkit.pool.connections.created";
+    public const string PoolConnectionsDropped = "mailkit.pool.connections.dropped";
+    public const string PoolConnectionCreateFailures = "mailkit.pool.connection.create.failures";
+    public const string PoolReconnectSuppressed = "mailkit.pool.reconnect.suppressed";
+    public const string SendDuration = "mailkit.send.duration";
+    public const string SendSuccessCount = "mailkit.send.success.count";
+    public const string SendFailedCount = "mailkit.send.failed.count";
+    public const string SendAmbiguousCount = "mailkit.send.ambiguous.count";
+    public const string SendRetryCount = "mailkit.send.retry.count";
+    public const string SendClassificationCount = "mailkit.send.classification.count";
 }

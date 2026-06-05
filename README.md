@@ -59,6 +59,7 @@ See the design documents under `docs/` for the current boundary, API direction, 
 
 For intended usage scenarios, see `docs/design/use-cases.md`.
 For guidance on selecting option values, see `docs/design/option-tuning.md`.
+For intended telemetry design, see `docs/operation/metrics-and-logging.md`.
 
 ## Quick Start
 

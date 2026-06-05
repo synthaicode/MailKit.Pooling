@@ -31,8 +31,10 @@ internal sealed class InMemorySmtpPoolMetrics : ISmtpPoolMetrics
     public IReadOnlyDictionary<string, int> ClassificationCounts()
     {
         return Events
-            .Where(metricEvent => string.Equals(metricEvent.Name, SmtpMetricNames.ErrorClassifications, StringComparison.Ordinal))
-            .GroupBy(metricEvent => metricEvent.Reason ?? "unknown", StringComparer.Ordinal)
+            .Where(metricEvent => string.Equals(metricEvent.Name, SmtpMetricNames.SendClassificationCount, StringComparison.Ordinal))
+            .GroupBy(
+                metricEvent => $"{metricEvent.FailureKind ?? "unknown"}:{metricEvent.Stage ?? "unknown"}",
+                StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
     }
 }

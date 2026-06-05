@@ -70,6 +70,7 @@ public sealed class SmtpPool : IAsyncDisposable
         ThrowIfDisposed();
         await EnsureMinimumPoolSizeAsync(cancellationToken).ConfigureAwait(false);
 
+        var acquireStartedAt = clock.UtcNow;
         var deadline = clock.UtcNow + options.AcquireTimeout;
         Interlocked.Increment(ref waitingCallers);
 
@@ -83,7 +84,11 @@ public sealed class SmtpPool : IAsyncDisposable
                 var now = clock.UtcNow;
                 if (now >= deadline)
                 {
-                    metrics.Record(new SmtpPoolMetricEvent(SmtpMetricNames.AcquireTimeouts, 1));
+                    RecordAcquireWaitTime(acquireStartedAt, now);
+                    metrics.Record(new SmtpPoolMetricEvent(
+                        SmtpMetricNames.PoolAcquireExhaustedCount,
+                        SmtpMetricInstrumentKind.Counter,
+                        1));
                     throw new SmtpPoolExhaustedException("Timed out while waiting for an SMTP connection lease.");
                 }
 
@@ -135,7 +140,10 @@ public sealed class SmtpPool : IAsyncDisposable
 
                 if (reconnectSuppressed)
                 {
-                    metrics.Record(new SmtpPoolMetricEvent(SmtpMetricNames.ReconnectSuppressed, 1));
+                    metrics.Record(new SmtpPoolMetricEvent(
+                        SmtpMetricNames.PoolReconnectSuppressed,
+                        SmtpMetricInstrumentKind.Counter,
+                        1));
                 }
 
                 if (brokenConnections is not null)
@@ -164,6 +172,7 @@ public sealed class SmtpPool : IAsyncDisposable
 
                     if (await ValidateLeasedConnectionAsync(leasedConnection, cancellationToken).ConfigureAwait(false))
                     {
+                        RecordAcquireWaitTime(acquireStartedAt, clock.UtcNow);
                         RecordCurrentState();
                         return new SmtpConnectionLease(this, leasedConnection.Id, leasedConnection.Client);
                     }
@@ -183,9 +192,11 @@ public sealed class SmtpPool : IAsyncDisposable
                         }
 
                         metrics.Record(new SmtpPoolMetricEvent(
-                            SmtpMetricNames.ConnectionsCreated,
+                            SmtpMetricNames.PoolConnectionsCreated,
+                            SmtpMetricInstrumentKind.Counter,
                             1,
                             pooledConnection.HostState.EndpointKey));
+                        RecordAcquireWaitTime(acquireStartedAt, clock.UtcNow);
                         RecordCurrentState();
                         return new SmtpConnectionLease(this, pooledConnection.Id, pooledConnection.Client);
                     }
@@ -198,7 +209,8 @@ public sealed class SmtpPool : IAsyncDisposable
                         }
 
                         metrics.Record(new SmtpPoolMetricEvent(
-                            SmtpMetricNames.ConnectionCreateFailures,
+                            SmtpMetricNames.PoolConnectionCreateFailures,
+                            SmtpMetricInstrumentKind.Counter,
                             1,
                             selectedHost?.EndpointKey));
 
@@ -254,7 +266,7 @@ public sealed class SmtpPool : IAsyncDisposable
 
         foreach (var connection in snapshot)
         {
-            await DisposeConnectionAsync(connection, CancellationToken.None).ConfigureAwait(false);
+            await DisposeConnectionAsync(connection, CancellationToken.None, "shutdown").ConfigureAwait(false);
         }
 
         RecordCurrentState();
@@ -291,7 +303,10 @@ public sealed class SmtpPool : IAsyncDisposable
 
         if (connectionToDispose is not null)
         {
-            await DisposeConnectionAsync(connectionToDispose, cancellationToken).ConfigureAwait(false);
+            await DisposeConnectionAsync(
+                connectionToDispose,
+                cancellationToken,
+                isReusable ? "shutdown" : "broken").ConfigureAwait(false);
             await EnsureMinimumPoolSizeAsync(cancellationToken).ConfigureAwait(false);
         }
 
@@ -345,7 +360,8 @@ public sealed class SmtpPool : IAsyncDisposable
                 }
 
                 metrics.Record(new SmtpPoolMetricEvent(
-                    SmtpMetricNames.ConnectionsCreated,
+                    SmtpMetricNames.PoolConnectionsCreated,
+                    SmtpMetricInstrumentKind.Counter,
                     1,
                     pooledConnection.HostState.EndpointKey));
                 RecordCurrentState();
@@ -359,7 +375,8 @@ public sealed class SmtpPool : IAsyncDisposable
                 }
 
                 metrics.Record(new SmtpPoolMetricEvent(
-                    SmtpMetricNames.ConnectionCreateFailures,
+                    SmtpMetricNames.PoolConnectionCreateFailures,
+                    SmtpMetricInstrumentKind.Counter,
                     1,
                     selectedHost?.EndpointKey));
 
@@ -383,9 +400,11 @@ public sealed class SmtpPool : IAsyncDisposable
         catch
         {
             metrics.Record(new SmtpPoolMetricEvent(
-                SmtpMetricNames.KeepAliveFailures,
+                SmtpMetricNames.PoolConnectionsDropped,
+                SmtpMetricInstrumentKind.Counter,
                 1,
-                connection.HostState.EndpointKey));
+                connection.HostState.EndpointKey,
+                Reason: "keepalive_failure"));
             await ReturnLeaseAsync(connection.Id, isReusable: false, cancellationToken).ConfigureAwait(false);
             return false;
         }
@@ -475,7 +494,7 @@ public sealed class SmtpPool : IAsyncDisposable
 
         foreach (var expiredConnection in expiredConnections)
         {
-            await DisposeConnectionAsync(expiredConnection, cancellationToken).ConfigureAwait(false);
+            await DisposeConnectionAsync(expiredConnection, cancellationToken, "idle_timeout").ConfigureAwait(false);
         }
     }
 
@@ -497,7 +516,6 @@ public sealed class SmtpPool : IAsyncDisposable
 
     private async Task<PooledConnection> CreateLeasedConnectionAsync(HostRuntimeState hostState, CancellationToken cancellationToken)
     {
-        metrics.Record(new SmtpPoolMetricEvent(SmtpMetricNames.ConnectionCreateAttempts, 1));
         var client = await connectionFactory.CreateAuthenticatedClientAsync(hostState.Host, cancellationToken).ConfigureAwait(false);
         return new PooledConnection(Guid.NewGuid(), client, hostState)
         {
@@ -507,7 +525,6 @@ public sealed class SmtpPool : IAsyncDisposable
 
     private async Task<PooledConnection> CreateIdleConnectionAsync(HostRuntimeState hostState, CancellationToken cancellationToken)
     {
-        metrics.Record(new SmtpPoolMetricEvent(SmtpMetricNames.ConnectionCreateAttempts, 1));
         var client = await connectionFactory.CreateAuthenticatedClientAsync(hostState.Host, cancellationToken).ConfigureAwait(false);
         return new PooledConnection(Guid.NewGuid(), client, hostState)
         {
@@ -516,7 +533,7 @@ public sealed class SmtpPool : IAsyncDisposable
         };
     }
 
-    private async Task DisposeConnectionAsync(PooledConnection connection, CancellationToken cancellationToken)
+    private async Task DisposeConnectionAsync(PooledConnection connection, CancellationToken cancellationToken, string reason = "broken")
     {
         try
         {
@@ -531,16 +548,38 @@ public sealed class SmtpPool : IAsyncDisposable
 
         await connection.Client.DisposeAsync().ConfigureAwait(false);
         metrics.Record(new SmtpPoolMetricEvent(
-            SmtpMetricNames.ConnectionsDisposed,
+            SmtpMetricNames.PoolConnectionsDropped,
+            SmtpMetricInstrumentKind.Counter,
             1,
-            connection.Client.EndpointKey));
+            connection.Client.EndpointKey,
+            Reason: reason));
     }
 
     private void RecordCurrentState()
     {
         var snapshot = GetSnapshot();
-        metrics.Record(new SmtpPoolMetricEvent(SmtpMetricNames.ActiveConnections, snapshot.LeasedConnections));
-        metrics.Record(new SmtpPoolMetricEvent(SmtpMetricNames.IdleConnections, snapshot.IdleConnections));
+        metrics.Record(new SmtpPoolMetricEvent(
+            SmtpMetricNames.PoolConnectionsActive,
+            SmtpMetricInstrumentKind.Gauge,
+            snapshot.LeasedConnections));
+        metrics.Record(new SmtpPoolMetricEvent(
+            SmtpMetricNames.PoolConnectionsIdle,
+            SmtpMetricInstrumentKind.Gauge,
+            snapshot.IdleConnections));
+    }
+
+    private void RecordAcquireWaitTime(DateTimeOffset startedAt, DateTimeOffset completedAt)
+    {
+        var waitDuration = completedAt - startedAt;
+        if (waitDuration < TimeSpan.Zero)
+        {
+            waitDuration = TimeSpan.Zero;
+        }
+
+        metrics.Record(new SmtpPoolMetricEvent(
+            SmtpMetricNames.PoolAcquireWaitTime,
+            SmtpMetricInstrumentKind.Histogram,
+            waitDuration.TotalMilliseconds));
     }
 
     private bool TrySelectHostForCreation(DateTimeOffset now, out HostRuntimeState? selectedHost)

@@ -53,9 +53,9 @@ public sealed class ReconnectSuppressionStressTests
             warmupSuccesses,
             outageFailures,
             recoverySuccesses,
-            (int) metrics.Sum(SmtpMetricNames.ConnectionCreateAttempts),
-            (int) metrics.Sum(SmtpMetricNames.ReconnectSuppressed),
-            (int) metrics.Sum(SmtpMetricNames.Retries),
+            (int) metrics.Sum(SmtpMetricNames.PoolConnectionsCreated),
+            (int) metrics.Sum(SmtpMetricNames.PoolReconnectSuppressed),
+            (int) metrics.Sum(SmtpMetricNames.SendRetryCount),
             finalSuccesses,
             metrics.ClassificationCounts(),
             string.Empty);

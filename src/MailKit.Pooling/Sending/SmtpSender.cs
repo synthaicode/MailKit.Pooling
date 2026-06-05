@@ -37,6 +37,7 @@ public sealed class SmtpSender : ISmtpSender
         ArgumentNullException.ThrowIfNull(message);
 
         var attempts = 0;
+        var sendStartedAt = clock.UtcNow;
 
         while (true)
         {
@@ -52,7 +53,12 @@ public sealed class SmtpSender : ISmtpSender
                     "send",
                     cancellationToken).ConfigureAwait(false);
                 await lease.ReturnAsync(cancellationToken).ConfigureAwait(false);
-                metrics.Record(new SmtpPoolMetricEvent(SmtpMetricNames.SendSuccesses, 1, lease.EndpointKey));
+                RecordSendDuration(sendStartedAt, clock.UtcNow, lease.EndpointKey);
+                metrics.Record(new SmtpPoolMetricEvent(
+                    SmtpMetricNames.SendSuccessCount,
+                    SmtpMetricInstrumentKind.Counter,
+                    1,
+                    lease.EndpointKey));
 
                 return new SmtpSendResult(
                     lease.ConnectionId,
@@ -75,10 +81,12 @@ public sealed class SmtpSender : ISmtpSender
                 var classificationTarget = ResolveClassificationTarget(exception);
                 var classification = classifier.Classify(classificationTarget, stage);
                 metrics.Record(new SmtpPoolMetricEvent(
-                    SmtpMetricNames.ErrorClassifications,
+                    SmtpMetricNames.SendClassificationCount,
+                    SmtpMetricInstrumentKind.Counter,
                     1,
                     lease?.EndpointKey,
-                    $"{classification.Kind}:{classification.Stage}"));
+                    FailureKind: classification.Kind.ToString(),
+                    Stage: classification.Stage.ToString()));
 
                 if (lease is not null)
                 {
@@ -95,10 +103,12 @@ public sealed class SmtpSender : ISmtpSender
                 if (ShouldRetry(classification, attempts))
                 {
                     metrics.Record(new SmtpPoolMetricEvent(
-                        SmtpMetricNames.Retries,
+                        SmtpMetricNames.SendRetryCount,
+                        SmtpMetricInstrumentKind.Counter,
                         1,
                         lease?.EndpointKey,
-                        classification.Kind.ToString()));
+                        FailureKind: classification.Kind.ToString(),
+                        Stage: classification.Stage.ToString()));
                     var retryDelay = RetryDelayCalculator.CalculateNextDelay(
                         attempts,
                         options.RetryBaseDelay,
@@ -113,11 +123,24 @@ public sealed class SmtpSender : ISmtpSender
                     continue;
                 }
 
+                RecordSendDuration(sendStartedAt, clock.UtcNow, lease?.EndpointKey);
                 metrics.Record(new SmtpPoolMetricEvent(
-                    SmtpMetricNames.SendFailures,
+                    SmtpMetricNames.SendFailedCount,
+                    SmtpMetricInstrumentKind.Counter,
                     1,
                     lease?.EndpointKey,
-                    classification.Kind.ToString()));
+                    FailureKind: classification.Kind.ToString(),
+                    Stage: classification.Stage.ToString()));
+                if (classification.Kind == SmtpFailureKind.UnknownAfterData)
+                {
+                    metrics.Record(new SmtpPoolMetricEvent(
+                        SmtpMetricNames.SendAmbiguousCount,
+                        SmtpMetricInstrumentKind.Counter,
+                        1,
+                        lease?.EndpointKey,
+                        FailureKind: classification.Kind.ToString(),
+                        Stage: classification.Stage.ToString()));
+                }
                 throw new SmtpSendFailedException(
                     $"SMTP send failed with classification '{classification.Kind}' after {attempts} attempt(s).",
                     classification,
@@ -174,5 +197,20 @@ public sealed class SmtpSender : ISmtpSender
         }
 
         return exception;
+    }
+
+    private void RecordSendDuration(DateTimeOffset startedAt, DateTimeOffset completedAt, string? smtpHost)
+    {
+        var duration = completedAt - startedAt;
+        if (duration < TimeSpan.Zero)
+        {
+            duration = TimeSpan.Zero;
+        }
+
+        metrics.Record(new SmtpPoolMetricEvent(
+            SmtpMetricNames.SendDuration,
+            SmtpMetricInstrumentKind.Histogram,
+            duration.TotalMilliseconds,
+            smtpHost));
     }
 }
