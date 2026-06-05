@@ -38,9 +38,15 @@ public static class ServiceCollectionExtensions
 
     private static void Validate(SmtpPoolOptions options)
     {
-        if (string.IsNullOrWhiteSpace(options.Host.Host))
+        var hosts = options.GetConfiguredHosts();
+        if (hosts.Count == 0)
         {
-            throw new ArgumentException("SmtpPoolOptions.Host.Host must be configured.", nameof(options));
+            throw new ArgumentException("At least one SMTP host must be configured.", nameof(options));
+        }
+
+        if (hosts.Any(host => string.IsNullOrWhiteSpace(host.Host)))
+        {
+            throw new ArgumentException("Each configured SMTP host must include Host.", nameof(options));
         }
     }
 }

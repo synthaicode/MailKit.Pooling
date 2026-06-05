@@ -185,6 +185,58 @@ public sealed class PoolStateTransitionTests
     }
 
     [Fact]
+    public async Task Cooldown_Is_Applied_Per_Host_And_Allows_Failover_To_Another_Host()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        var firstClient = new FakeSmtpClientAdapter { EndpointKey = "smtp-a.local:2525" };
+        var secondClient = new FakeSmtpClientAdapter { EndpointKey = "smtp-b.local:2526" };
+        factory.Enqueue(firstClient);
+        factory.Enqueue(secondClient);
+
+        await using var pool = new SmtpPool(
+            CreateMultiHostOptions(reconnectCooldown: TimeSpan.FromSeconds(30)),
+            factory,
+            clock);
+
+        var firstLease = await pool.AcquireLeaseAsync();
+        await firstLease.InvalidateAsync();
+
+        var secondLease = await pool.AcquireLeaseAsync();
+
+        Assert.Equal(
+            ["smtp-a.local:2525", "smtp-b.local:2526"],
+            factory.RequestedHosts);
+        Assert.Equal("smtp-b.local:2526", secondLease.EndpointKey);
+
+        await secondLease.ReturnAsync();
+    }
+
+    [Fact]
+    public async Task MultiHost_Selection_Rotates_Between_Hosts()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        factory.Enqueue(new FakeSmtpClientAdapter { EndpointKey = "smtp-a.local:2525" });
+        factory.Enqueue(new FakeSmtpClientAdapter { EndpointKey = "smtp-b.local:2526" });
+
+        await using var pool = new SmtpPool(
+            CreateMultiHostOptions(maxPoolSize: 2, reconnectCooldown: TimeSpan.Zero),
+            factory,
+            clock);
+
+        var lease1 = await pool.AcquireLeaseAsync();
+        var lease2 = await pool.AcquireLeaseAsync();
+
+        Assert.Equal(
+            ["smtp-a.local:2525", "smtp-b.local:2526"],
+            factory.RequestedHosts);
+
+        await lease1.ReturnAsync();
+        await lease2.ReturnAsync();
+    }
+
+    [Fact]
     public async Task KeepAlive_Is_Executed_For_Stale_Idle_Connections()
     {
         var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
@@ -318,6 +370,25 @@ public sealed class PoolStateTransitionTests
             ReconnectCooldown = reconnectCooldown ?? TimeSpan.FromSeconds(30),
             KeepAliveInterval = keepAliveInterval ?? TimeSpan.FromMinutes(1),
             IdleTimeout = idleTimeout ?? TimeSpan.FromMinutes(2),
+        };
+    }
+
+    private static SmtpPoolOptions CreateMultiHostOptions(
+        int maxPoolSize = 1,
+        TimeSpan? reconnectCooldown = null)
+    {
+        return new SmtpPoolOptions
+        {
+            Hosts =
+            [
+                new SmtpHostOptions { Host = "smtp-a.local", Port = 2525 },
+                new SmtpHostOptions { Host = "smtp-b.local", Port = 2526 },
+            ],
+            MaxPoolSize = maxPoolSize,
+            AcquireTimeout = TimeSpan.FromSeconds(15),
+            ReconnectCooldown = reconnectCooldown ?? TimeSpan.FromSeconds(30),
+            KeepAliveInterval = TimeSpan.FromMinutes(1),
+            IdleTimeout = TimeSpan.FromMinutes(2),
         };
     }
 }

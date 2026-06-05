@@ -17,22 +17,26 @@ public sealed class MailKitSmtpConnectionFactory : ISmtpConnectionFactory
         this.clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
     }
 
-    public async Task<ISmtpClientAdapter> CreateAuthenticatedClientAsync(CancellationToken cancellationToken)
+    public async Task<ISmtpClientAdapter> CreateAuthenticatedClientAsync(
+        SmtpHostOptions host,
+        CancellationToken cancellationToken)
     {
-        var secureSocketOptions = MailKitSecureSocketOptionsParser.Parse(options.Host.SecureSocketOptions);
-        var authenticationRequired = !string.IsNullOrWhiteSpace(options.Host.UserName);
+        ArgumentNullException.ThrowIfNull(host);
+
+        var secureSocketOptions = MailKitSecureSocketOptionsParser.Parse(host.SecureSocketOptions);
+        var authenticationRequired = !string.IsNullOrWhiteSpace(host.UserName);
         var client = clientFactory.Create();
         var adapter = new MailKitSmtpClientAdapter(
             client,
-            BuildEndpointKey(),
+            host.ToEndpointKey(),
             authenticationSatisfied: !authenticationRequired);
 
         try
         {
             await TimeoutExecution.ExecuteAsync(
                 token => client.ConnectAsync(
-                    options.Host.Host,
-                    options.Host.Port,
+                    host.Host,
+                    host.Port,
                     secureSocketOptions,
                     token),
                 options.ConnectTimeout,
@@ -41,11 +45,11 @@ public sealed class MailKitSmtpConnectionFactory : ISmtpConnectionFactory
 
             if (authenticationRequired)
             {
-                var userName = options.Host.UserName!;
+                var userName = host.UserName!;
                 await TimeoutExecution.ExecuteAsync(
                     token => client.AuthenticateAsync(
                         userName,
-                        options.Host.Password ?? string.Empty,
+                        host.Password ?? string.Empty,
                         token),
                     options.AuthenticateTimeout,
                     "authenticate",
@@ -59,10 +63,5 @@ public sealed class MailKitSmtpConnectionFactory : ISmtpConnectionFactory
             client.Dispose();
             throw;
         }
-    }
-
-    private string BuildEndpointKey()
-    {
-        return $"{options.Host.Host}:{options.Host.Port}";
     }
 }

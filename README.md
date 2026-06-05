@@ -27,13 +27,14 @@ It does not yet contain every planned operational feature or public observabilit
 
 ## MVP scope
 
-The initial MVP targets single-host SMTP pooling with:
+The current MVP provides guarded SMTP pooling with:
 
 - MailKit-based connect, authenticate, send, and keepalive execution
+- single-host and basic multi-host endpoint configuration
 - `MinPoolSize`, `MaxPoolSize`, and `AcquireTimeout`
 - one-send-per-connection exclusivity
 - failed-connection disposal
-- reconnect cooldown
+- reconnect cooldown, including host-level cooldown for multi-host selection
 - keepalive health checks
 - explicit error classification
 - dependency-injection and logging integration
@@ -55,6 +56,67 @@ The initial package does not aim to provide:
 - `MailKit.Pooling.DependencyInjection`
 
 See the design documents under `docs/` for the current boundary, API direction, and open decisions.
+
+## Quick Start
+
+Register the pool once in DI, then send through `ISmtpSender`.
+
+```csharp
+using MailKit.Pooling.Abstractions;
+using MailKit.Pooling.DependencyInjection;
+using MailKit.Pooling.Options;
+using Microsoft.Extensions.DependencyInjection;
+using MimeKit;
+
+var services = new ServiceCollection();
+
+services.AddMailKitPooling(options =>
+{
+    options.Hosts.Add(new SmtpHostOptions
+    {
+        Host = "smtp-primary.example.com",
+        Port = 587,
+        SecureSocketOptions = "StartTls",
+        UserName = "smtp-user",
+        Password = "smtp-password",
+    });
+
+    options.Hosts.Add(new SmtpHostOptions
+    {
+        Host = "smtp-secondary.example.com",
+        Port = 587,
+        SecureSocketOptions = "StartTls",
+        UserName = "smtp-user",
+        Password = "smtp-password",
+    });
+
+    options.MinPoolSize = 0;
+    options.MaxPoolSize = 8;
+    options.AcquireTimeout = TimeSpan.FromSeconds(15);
+    options.IdleTimeout = TimeSpan.FromMinutes(2);
+    options.KeepAliveInterval = TimeSpan.FromMinutes(1);
+    options.ConnectTimeout = TimeSpan.FromSeconds(15);
+    options.AuthenticateTimeout = TimeSpan.FromSeconds(15);
+    options.SendTimeout = TimeSpan.FromSeconds(30);
+    options.ReconnectCooldown = TimeSpan.FromSeconds(30);
+    options.MaxRetryAttempts = 1;
+    options.RetryBaseDelay = TimeSpan.FromSeconds(2);
+});
+
+var provider = services.BuildServiceProvider();
+var sender = provider.GetRequiredService<ISmtpSender>();
+
+var message = new MimeMessage();
+message.From.Add(MailboxAddress.Parse("from@example.com"));
+message.To.Add(MailboxAddress.Parse("to@example.com"));
+message.Subject = "Hello";
+message.Body = new TextPart("plain") { Text = "Hello from MailKit.Pooling" };
+
+var result = await sender.SendAsync(message);
+Console.WriteLine($"Sent via {result.EndpointKey} in {result.Attempts} attempt(s).");
+```
+
+If you only have one SMTP endpoint, configuring `options.Host` still works as a compatibility path. New configuration should prefer `options.Hosts`.
 
 ## Verification Notes
 

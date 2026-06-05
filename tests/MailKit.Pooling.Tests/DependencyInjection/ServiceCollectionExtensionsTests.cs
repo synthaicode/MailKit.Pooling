@@ -48,6 +48,33 @@ public sealed class ServiceCollectionExtensionsTests
 
         var exception = Assert.Throws<ArgumentException>(() => services.AddMailKitPooling(_ => { }));
 
-        Assert.Contains("Host.Host", exception.Message);
+        Assert.Contains("At least one SMTP host", exception.Message);
+    }
+
+    [Fact]
+    public async Task AddMailKitPooling_Accepts_Multiple_Hosts()
+    {
+        var services = new ServiceCollection();
+
+        services.AddMailKitPooling(options =>
+        {
+            options.Hosts =
+            [
+                new SmtpHostOptions { Host = "smtp-a.local", Port = 2525 },
+                new SmtpHostOptions { Host = "smtp-b.local", Port = 2526 },
+            ];
+        });
+
+        var provider = services.BuildServiceProvider();
+
+        try
+        {
+            var options = provider.GetRequiredService<SmtpPoolOptions>();
+            Assert.Equal(2, options.GetConfiguredHosts().Count);
+        }
+        finally
+        {
+            await provider.DisposeAsync();
+        }
     }
 }

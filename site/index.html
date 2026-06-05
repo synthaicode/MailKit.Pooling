@@ -56,20 +56,30 @@
       <pre><code class="language-csharp">using MailKit.Pooling.Abstractions;
 using MailKit.Pooling.DependencyInjection;
 using MailKit.Pooling.Options;
+using Microsoft.Extensions.DependencyInjection;
 using MimeKit;
 
 var services = new ServiceCollection();
 
 services.AddMailKitPooling(options =&gt;
 {
-    options.Host = new SmtpHostOptions
+    options.Hosts.Add(new SmtpHostOptions
     {
-        Host = "smtp.example.com",
+        Host = "smtp-primary.example.com",
         Port = 587,
         SecureSocketOptions = "StartTls",
         UserName = "smtp-user",
         Password = "smtp-password",
-    };
+    });
+
+    options.Hosts.Add(new SmtpHostOptions
+    {
+        Host = "smtp-secondary.example.com",
+        Port = 587,
+        SecureSocketOptions = "StartTls",
+        UserName = "smtp-user",
+        Password = "smtp-password",
+    });
 
     options.MinPoolSize = 0;
     options.MaxPoolSize = 8;
@@ -95,6 +105,10 @@ message.Body = new TextPart("plain") { Text = "Hello from MailKit.Pooling" };
 
 var result = await sender.SendAsync(message);
 Console.WriteLine($"Sent via {result.EndpointKey} in {result.Attempts} attempt(s).");</code></pre>
+      <p class="note">
+        If you only have one SMTP endpoint, <code>options.Host</code> still works as a compatibility path.
+        New configuration should prefer <code>options.Hosts</code>.
+      </p>
     </section>
 
     <section id="verification" class="section">
@@ -110,7 +124,7 @@ Console.WriteLine($"Sent via {result.EndpointKey} in {result.Attempts} attempt(s
         </article>
         <article class="card">
           <h3>Recover</h3>
-          <p>Failures are classified. Retry and reconnect cooldown decisions follow the classification and stage.</p>
+          <p>Failures are classified. Retry, host-level cooldown, and failover decisions follow the classification and stage.</p>
         </article>
       </div>
     </section>
@@ -190,7 +204,7 @@ Console.WriteLine($"Sent via {result.EndpointKey} in {result.Attempts} attempt(s
         <li>The public metrics surface is not finalized yet.</li>
         <li>TIME_WAIT observation is Windows-first and not implemented for Linux or macOS.</li>
         <li>Stress/resource validation is manual, not part of the default fast test path.</li>
-        <li>Multi-host failover and broader circuit-breaker behavior remain future work.</li>
+        <li>Multi-host selection exists, but weighted routing, priority order, and broader circuit-breaker behavior remain future work.</li>
       </ul>
     </section>
   </main>

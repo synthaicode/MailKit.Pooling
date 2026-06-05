@@ -11,13 +11,15 @@ public sealed class SmtpPool : IAsyncDisposable
     private readonly IClock clock;
     private readonly ISmtpPoolMetrics metrics;
     private readonly SmtpPoolOptions options;
+    private readonly HostRuntimeState[] hostStates;
+    private readonly Dictionary<string, HostRuntimeState> hostStatesByEndpointKey;
     private readonly object sync = new();
     private readonly Dictionary<Guid, PooledConnection> connections = new();
     private readonly Queue<Guid> idleConnectionIds = new();
     private bool disposed;
+    private int nextHostIndex;
     private int pendingConnectionCreations;
     private int waitingCallers;
-    private DateTimeOffset? nextCreationAllowedAt;
 
     public SmtpPool(
         SmtpPoolOptions options,
@@ -29,6 +31,13 @@ public sealed class SmtpPool : IAsyncDisposable
         this.connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
         this.clock = clock ?? SystemClock.Instance;
         this.metrics = metrics ?? NoOpSmtpPoolMetrics.Instance;
+        hostStates = options.GetConfiguredHosts()
+            .Select(host => new HostRuntimeState(host))
+            .ToArray();
+        hostStatesByEndpointKey = hostStates.ToDictionary(
+            state => state.EndpointKey,
+            state => state,
+            StringComparer.Ordinal);
 
         if (options.MaxPoolSize <= 0)
         {
@@ -43,6 +52,11 @@ public sealed class SmtpPool : IAsyncDisposable
         if (options.AcquireTimeout <= TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(nameof(options.AcquireTimeout), "AcquireTimeout must be greater than zero.");
+        }
+
+        if (hostStates.Length == 0)
+        {
+            throw new ArgumentException("At least one SMTP host must be configured.", nameof(options));
         }
     }
 
@@ -70,6 +84,7 @@ public sealed class SmtpPool : IAsyncDisposable
 
                 List<PooledConnection>? brokenConnections = null;
                 Guid? reusableConnectionId = null;
+                HostRuntimeState? selectedHost = null;
                 bool shouldCreateConnection = false;
                 bool reconnectSuppressed = false;
 
@@ -101,7 +116,7 @@ public sealed class SmtpPool : IAsyncDisposable
                     if (reusableConnectionId is null)
                     {
                         var liveConnections = connections.Count + pendingConnectionCreations;
-                        if (liveConnections < options.MaxPoolSize && CanCreateConnection(now))
+                        if (liveConnections < options.MaxPoolSize && TrySelectHostForCreation(now, out selectedHost))
                         {
                             pendingConnectionCreations++;
                             shouldCreateConnection = true;
@@ -155,7 +170,7 @@ public sealed class SmtpPool : IAsyncDisposable
                 {
                     try
                     {
-                        var pooledConnection = await CreateLeasedConnectionAsync(cancellationToken).ConfigureAwait(false);
+                        var pooledConnection = await CreateLeasedConnectionAsync(selectedHost!, cancellationToken).ConfigureAwait(false);
                         lock (sync)
                         {
                             pendingConnectionCreations--;
@@ -165,7 +180,7 @@ public sealed class SmtpPool : IAsyncDisposable
                         metrics.Record(new SmtpPoolMetricEvent(
                             SmtpMetricNames.ConnectionsCreated,
                             1,
-                            pooledConnection.Client.EndpointKey));
+                            pooledConnection.HostState.EndpointKey));
                         RecordCurrentState();
                         return new SmtpConnectionLease(this, pooledConnection.Id, pooledConnection.Client);
                     }
@@ -174,10 +189,13 @@ public sealed class SmtpPool : IAsyncDisposable
                         lock (sync)
                         {
                             pendingConnectionCreations--;
-                            nextCreationAllowedAt = now + options.ReconnectCooldown;
+                            ApplyCooldown(selectedHost!, now + options.ReconnectCooldown);
                         }
 
-                        metrics.Record(new SmtpPoolMetricEvent(SmtpMetricNames.ConnectionCreateFailures, 1));
+                        metrics.Record(new SmtpPoolMetricEvent(
+                            SmtpMetricNames.ConnectionCreateFailures,
+                            1,
+                            selectedHost?.EndpointKey));
 
                         throw;
                     }
@@ -208,7 +226,7 @@ public sealed class SmtpPool : IAsyncDisposable
                 idleConnectionIds.Count,
                 connections.Values.Count(static connection => connection.IsLeased),
                 waitingCallers,
-                nextCreationAllowedAt);
+                GetNextCreationAllowedAtUnsafe());
         }
     }
 
@@ -256,7 +274,7 @@ public sealed class SmtpPool : IAsyncDisposable
             if (disposed || !isReusable || !connection.Client.IsConnected || !connection.Client.IsAuthenticated)
             {
                 connections.Remove(connectionId);
-                nextCreationAllowedAt = clock.UtcNow + options.ReconnectCooldown;
+                ApplyCooldown(connection.HostState, clock.UtcNow + options.ReconnectCooldown);
                 connectionToDispose = connection;
             }
             else
@@ -275,11 +293,6 @@ public sealed class SmtpPool : IAsyncDisposable
         RecordCurrentState();
     }
 
-    private bool CanCreateConnection(DateTimeOffset now)
-    {
-        return nextCreationAllowedAt is null || now >= nextCreationAllowedAt.Value;
-    }
-
     private async Task EnsureMinimumPoolSizeAsync(CancellationToken cancellationToken)
     {
         if (options.MinPoolSize <= 0)
@@ -293,6 +306,7 @@ public sealed class SmtpPool : IAsyncDisposable
             await DisposeExpiredIdleConnectionsAsync(cancellationToken).ConfigureAwait(false);
 
             var now = clock.UtcNow;
+            HostRuntimeState? selectedHost = null;
             bool shouldCreateConnection;
 
             lock (sync)
@@ -300,7 +314,8 @@ public sealed class SmtpPool : IAsyncDisposable
                 ThrowIfDisposed();
 
                 var targetConnectionCount = connections.Count + pendingConnectionCreations;
-                shouldCreateConnection = targetConnectionCount < options.MinPoolSize && CanCreateConnection(now);
+                shouldCreateConnection = targetConnectionCount < options.MinPoolSize
+                    && TrySelectHostForCreation(now, out selectedHost);
 
                 if (shouldCreateConnection)
                 {
@@ -315,7 +330,7 @@ public sealed class SmtpPool : IAsyncDisposable
 
             try
             {
-                var pooledConnection = await CreateIdleConnectionAsync(cancellationToken).ConfigureAwait(false);
+                var pooledConnection = await CreateIdleConnectionAsync(selectedHost!, cancellationToken).ConfigureAwait(false);
 
                 lock (sync)
                 {
@@ -327,7 +342,7 @@ public sealed class SmtpPool : IAsyncDisposable
                 metrics.Record(new SmtpPoolMetricEvent(
                     SmtpMetricNames.ConnectionsCreated,
                     1,
-                    pooledConnection.Client.EndpointKey));
+                    pooledConnection.HostState.EndpointKey));
                 RecordCurrentState();
             }
             catch
@@ -335,10 +350,13 @@ public sealed class SmtpPool : IAsyncDisposable
                 lock (sync)
                 {
                     pendingConnectionCreations--;
-                    nextCreationAllowedAt = now + options.ReconnectCooldown;
+                    ApplyCooldown(selectedHost!, now + options.ReconnectCooldown);
                 }
 
-                metrics.Record(new SmtpPoolMetricEvent(SmtpMetricNames.ConnectionCreateFailures, 1));
+                metrics.Record(new SmtpPoolMetricEvent(
+                    SmtpMetricNames.ConnectionCreateFailures,
+                    1,
+                    selectedHost?.EndpointKey));
 
                 throw;
             }
@@ -362,7 +380,7 @@ public sealed class SmtpPool : IAsyncDisposable
             metrics.Record(new SmtpPoolMetricEvent(
                 SmtpMetricNames.KeepAliveFailures,
                 1,
-                connection.Client.EndpointKey));
+                connection.HostState.EndpointKey));
             await ReturnLeaseAsync(connection.Id, isReusable: false, cancellationToken).ConfigureAwait(false);
             return false;
         }
@@ -464,28 +482,29 @@ public sealed class SmtpPool : IAsyncDisposable
             return TimeSpan.Zero;
         }
 
-        var cooldownWait = nextCreationAllowedAt is { } cooldownUntil && cooldownUntil > now
-            ? cooldownUntil - now
+        var cooldownUntil = GetNextCreationAllowedAt();
+        var cooldownWait = cooldownUntil is { } nextAllowedAt && nextAllowedAt > now
+            ? nextAllowedAt - now
             : TimeSpan.FromMilliseconds(25);
 
         return cooldownWait < remaining ? cooldownWait : remaining;
     }
 
-    private async Task<PooledConnection> CreateLeasedConnectionAsync(CancellationToken cancellationToken)
+    private async Task<PooledConnection> CreateLeasedConnectionAsync(HostRuntimeState hostState, CancellationToken cancellationToken)
     {
         metrics.Record(new SmtpPoolMetricEvent(SmtpMetricNames.ConnectionCreateAttempts, 1));
-        var client = await connectionFactory.CreateAuthenticatedClientAsync(cancellationToken).ConfigureAwait(false);
-        return new PooledConnection(Guid.NewGuid(), client)
+        var client = await connectionFactory.CreateAuthenticatedClientAsync(hostState.Host, cancellationToken).ConfigureAwait(false);
+        return new PooledConnection(Guid.NewGuid(), client, hostState)
         {
             IsLeased = true,
         };
     }
 
-    private async Task<PooledConnection> CreateIdleConnectionAsync(CancellationToken cancellationToken)
+    private async Task<PooledConnection> CreateIdleConnectionAsync(HostRuntimeState hostState, CancellationToken cancellationToken)
     {
         metrics.Record(new SmtpPoolMetricEvent(SmtpMetricNames.ConnectionCreateAttempts, 1));
-        var client = await connectionFactory.CreateAuthenticatedClientAsync(cancellationToken).ConfigureAwait(false);
-        return new PooledConnection(Guid.NewGuid(), client)
+        var client = await connectionFactory.CreateAuthenticatedClientAsync(hostState.Host, cancellationToken).ConfigureAwait(false);
+        return new PooledConnection(Guid.NewGuid(), client, hostState)
         {
             IsLeased = false,
             LastReturnedAt = clock.UtcNow,
@@ -519,6 +538,58 @@ public sealed class SmtpPool : IAsyncDisposable
         metrics.Record(new SmtpPoolMetricEvent(SmtpMetricNames.IdleConnections, snapshot.IdleConnections));
     }
 
+    private bool TrySelectHostForCreation(DateTimeOffset now, out HostRuntimeState? selectedHost)
+    {
+        for (var offset = 0; offset < hostStates.Length; offset++)
+        {
+            var index = (nextHostIndex + offset) % hostStates.Length;
+            var candidate = hostStates[index];
+            if (candidate.NextCreationAllowedAt is { } nextAllowedAt && now < nextAllowedAt)
+            {
+                continue;
+            }
+
+            nextHostIndex = (index + 1) % hostStates.Length;
+            selectedHost = candidate;
+            return true;
+        }
+
+        selectedHost = null;
+        return false;
+    }
+
+    private void ApplyCooldown(HostRuntimeState hostState, DateTimeOffset nextAllowedAt)
+    {
+        hostState.NextCreationAllowedAt = nextAllowedAt;
+    }
+
+    private DateTimeOffset? GetNextCreationAllowedAt()
+    {
+        lock (sync)
+        {
+            return GetNextCreationAllowedAtUnsafe();
+        }
+    }
+
+    private DateTimeOffset? GetNextCreationAllowedAtUnsafe()
+    {
+        DateTimeOffset? nextCreationAllowedAt = null;
+        foreach (var hostState in hostStates)
+        {
+            if (hostState.NextCreationAllowedAt is null)
+            {
+                continue;
+            }
+
+            if (nextCreationAllowedAt is null || hostState.NextCreationAllowedAt < nextCreationAllowedAt)
+            {
+                nextCreationAllowedAt = hostState.NextCreationAllowedAt;
+            }
+        }
+
+        return nextCreationAllowedAt;
+    }
+
     private void ThrowIfDisposed()
     {
         if (disposed)
@@ -529,18 +600,36 @@ public sealed class SmtpPool : IAsyncDisposable
 
     private sealed class PooledConnection
     {
-        public PooledConnection(Guid id, ISmtpClientAdapter client)
+        public PooledConnection(Guid id, ISmtpClientAdapter client, HostRuntimeState hostState)
         {
             Id = id;
             Client = client;
+            HostState = hostState;
         }
 
         public Guid Id { get; }
 
         public ISmtpClientAdapter Client { get; }
 
+        public HostRuntimeState HostState { get; }
+
         public bool IsLeased { get; set; }
 
         public DateTimeOffset LastReturnedAt { get; set; }
+    }
+
+    private sealed class HostRuntimeState
+    {
+        public HostRuntimeState(SmtpHostOptions host)
+        {
+            Host = host;
+            EndpointKey = host.ToEndpointKey();
+        }
+
+        public SmtpHostOptions Host { get; }
+
+        public string EndpointKey { get; }
+
+        public DateTimeOffset? NextCreationAllowedAt { get; set; }
     }
 }

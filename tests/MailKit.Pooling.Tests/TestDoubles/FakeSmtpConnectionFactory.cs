@@ -1,4 +1,5 @@
 using MailKit.Pooling.Abstractions;
+using MailKit.Pooling.Options;
 
 namespace MailKit.Pooling.Tests.TestDoubles;
 
@@ -7,6 +8,8 @@ internal sealed class FakeSmtpConnectionFactory : ISmtpConnectionFactory
     private readonly Queue<Func<ISmtpClientAdapter>> factories = [];
 
     public int CreateCalls { get; private set; }
+
+    public List<string> RequestedHosts { get; } = [];
 
     public void Enqueue(ISmtpClientAdapter client)
     {
@@ -18,9 +21,12 @@ internal sealed class FakeSmtpConnectionFactory : ISmtpConnectionFactory
         factories.Enqueue(() => throw exception);
     }
 
-    public Task<ISmtpClientAdapter> CreateAuthenticatedClientAsync(CancellationToken cancellationToken)
+    public Task<ISmtpClientAdapter> CreateAuthenticatedClientAsync(
+        SmtpHostOptions host,
+        CancellationToken cancellationToken)
     {
         CreateCalls++;
+        RequestedHosts.Add(host.ToEndpointKey());
 
         if (factories.Count == 0)
         {

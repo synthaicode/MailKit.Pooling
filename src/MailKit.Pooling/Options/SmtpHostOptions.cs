@@ -7,4 +7,9 @@ public sealed class SmtpHostOptions
     public string? UserName { get; set; }
     public string? Password { get; set; }
     public string SecureSocketOptions { get; set; } = "StartTlsWhenAvailable";
+
+    public string ToEndpointKey()
+    {
+        return $"{Host}:{Port}";
+    }
 }

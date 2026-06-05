@@ -3,6 +3,7 @@ namespace MailKit.Pooling.Options;
 public sealed class SmtpPoolOptions
 {
     public SmtpHostOptions Host { get; set; } = new();
+    public List<SmtpHostOptions> Hosts { get; set; } = [];
     public int MinPoolSize { get; set; } = 0;
     public int MaxPoolSize { get; set; } = 8;
     public TimeSpan AcquireTimeout { get; set; } = TimeSpan.FromSeconds(15);
@@ -19,4 +20,16 @@ public sealed class SmtpPoolOptions
     public TimeSpan RetryBaseDelay { get; set; } = TimeSpan.FromSeconds(2);
     public bool EnableKeepAlive { get; set; } = true;
     public bool EnableMetrics { get; set; } = true;
+
+    public IReadOnlyList<SmtpHostOptions> GetConfiguredHosts()
+    {
+        if (Hosts.Count > 0)
+        {
+            return Hosts;
+        }
+
+        return string.IsNullOrWhiteSpace(Host.Host)
+            ? []
+            : [Host];
+    }
 }
