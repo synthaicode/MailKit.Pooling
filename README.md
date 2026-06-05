@@ -122,6 +122,42 @@ Console.WriteLine($"Sent via {result.EndpointKey} in {result.Attempts} attempt(s
 
 If you only have one SMTP endpoint, configuring `options.Host` still works as a compatibility path. New configuration should prefer `options.Hosts`. Lower `Priority` values are preferred first. `Weight` applies within hosts that share the same `Priority`.
 
+## Send Failures
+
+`ISmtpSender.SendAsync()` returns `SmtpSendResult` on success.
+
+On failure, the main exception surface is:
+
+- `SmtpSendFailedException`
+  - thrown when SMTP send/connect/authenticate/acquire work failed after library classification
+  - inspect `Classification.Kind`, `Classification.Stage`, and `Attempts`
+  - `InnerException` keeps the original MailKit, timeout, socket, or protocol exception
+
+- `SmtpPoolExhaustedException`
+  - raised internally for bounded acquire timeout
+  - when this happens through `ISmtpSender`, it is normally wrapped into `SmtpSendFailedException` with classification `PoolExhausted`
+
+- `OperationCanceledException`
+  - returned as-is when the caller's `CancellationToken` is canceled
+  - caller cancellation is not wrapped into `SmtpSendFailedException`
+
+Typical handling looks like:
+
+```csharp
+try
+{
+    await sender.SendAsync(message, cancellationToken);
+}
+catch (SmtpSendFailedException ex) when (ex.Classification.Kind == SmtpFailureKind.PoolExhausted)
+{
+    // Pool wait exceeded AcquireTimeout.
+}
+catch (SmtpSendFailedException ex) when (ex.Classification.Kind == SmtpFailureKind.UnknownAfterData)
+{
+    // Delivery may already be ambiguous. Do not blindly resend.
+}
+```
+
 ## Verification Notes
 
 The repository includes:
