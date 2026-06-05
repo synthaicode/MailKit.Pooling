@@ -57,6 +57,8 @@ The initial package does not aim to provide:
 
 See the design documents under `docs/` for the current boundary, API direction, and open decisions.
 
+For intended usage scenarios, see `docs/design/use-cases.md`.
+
 ## Quick Start
 
 Register the pool once in DI, then send through `ISmtpSender`.
@@ -121,6 +123,24 @@ Console.WriteLine($"Sent via {result.EndpointKey} in {result.Attempts} attempt(s
 ```
 
 If you only have one SMTP endpoint, configuring `options.Host` still works as a compatibility path. New configuration should prefer `options.Hosts`. Lower `Priority` values are preferred first. `Weight` applies within hosts that share the same `Priority`.
+
+## Intended Use Cases
+
+`MailKit.Pooling` is intended for SMTP-based application code that needs safer connection lifecycle control, not for full notification orchestration.
+
+- web APIs that send transactional email during request handling
+- background workers or outbox executors that send steady SMTP traffic
+- environments where TCP churn, TIME_WAIT, or reconnect storms are operational concerns
+- multi-host SMTP relay setups that need application-side priority and weight handling
+
+It is not intended to replace:
+
+- template rendering
+- durable delivery workflows
+- non-SMTP transport abstraction
+- bulk marketing infrastructure
+
+See `docs/design/use-cases.md` for the fuller boundary and decision rule.
 
 ## Send Failures
 

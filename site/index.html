@@ -172,6 +172,33 @@ catch (SmtpSendFailedException ex) when (ex.Classification.Kind == SmtpFailureKi
     </section>
 
     <section class="section">
+      <h2>Intended Use Cases</h2>
+      <div class="grid two">
+        <article class="card">
+          <h3>Good Fits</h3>
+          <ul>
+            <li>ASP.NET Core APIs that send transactional email inside request handling</li>
+            <li>background workers or outbox processors that send steady SMTP traffic</li>
+            <li>systems where SMTP connection churn causes TIME_WAIT or reconnect pressure</li>
+            <li>multi-host SMTP relay setups that need application-side priority and weight</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>Not The Goal</h3>
+          <ul>
+            <li>template rendering or notification orchestration</li>
+            <li>durable delivery guarantees or deduplication storage</li>
+            <li>non-SMTP transport abstraction such as Graph or SES APIs</li>
+            <li>bulk marketing delivery platforms</li>
+          </ul>
+        </article>
+      </div>
+      <p class="note">
+        The fuller boundary is documented in <code>docs/design/use-cases.md</code>.
+      </p>
+    </section>
+
+    <section class="section">
       <h2>Important Options</h2>
       <table class="options">
         <thead>
