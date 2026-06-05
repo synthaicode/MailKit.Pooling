@@ -22,8 +22,8 @@ public sealed class ReconnectSuppressionStressTests
         {
             Host = new SmtpHostOptions
             {
-                Host = "localhost",
-                Port = 2525,
+                Host = harness.SmtpHost,
+                Port = harness.SmtpPort,
                 SecureSocketOptions = "None",
             },
             MaxPoolSize = 2,

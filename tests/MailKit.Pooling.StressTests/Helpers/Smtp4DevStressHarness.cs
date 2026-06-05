@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -7,44 +8,102 @@ namespace MailKit.Pooling.StressTests.Helpers;
 
 internal sealed class Smtp4DevStressHarness : IAsyncDisposable
 {
-    private static readonly Uri ApiBaseAddress = new("http://localhost:5080");
     private static readonly string ComposeFilePath = Path.GetFullPath(
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "docker", "compose.smtp.yml"));
+    private const string ManageDockerEnvironmentVariable = "MAILKIT_POOLING_STRESS_MANAGED_BY_HARNESS";
+    private const string SmtpHostEnvironmentVariable = "MAILKIT_POOLING_STRESS_SMTP_HOST";
+    private const string SmtpPortEnvironmentVariable = "MAILKIT_POOLING_STRESS_SMTP_PORT";
+    private const string ApiBaseEnvironmentVariable = "MAILKIT_POOLING_STRESS_API_BASE";
+    private static readonly string StressLockFilePath = Path.Combine(Path.GetTempPath(), "MailKit.Pooling.Smtp4DevStress.lock");
 
-    private readonly Semaphore semaphore;
+    private readonly Semaphore? semaphore;
+    private readonly FileStream? lockFileStream;
+    private readonly bool manageDockerLifecycle;
+    private readonly Uri apiBaseAddress;
 
-    private Smtp4DevStressHarness(Semaphore semaphore)
+    private Smtp4DevStressHarness(
+        Semaphore? semaphore,
+        FileStream? lockFileStream,
+        bool manageDockerLifecycle,
+        string smtpHost,
+        int smtpPort,
+        Uri apiBaseAddress)
     {
         this.semaphore = semaphore;
+        this.lockFileStream = lockFileStream;
+        this.manageDockerLifecycle = manageDockerLifecycle;
+        SmtpHost = smtpHost;
+        SmtpPort = smtpPort;
+        this.apiBaseAddress = apiBaseAddress;
     }
+
+    public string SmtpHost { get; }
+
+    public int SmtpPort { get; }
 
     public static async Task<Smtp4DevStressHarness> AcquireAsync()
     {
-        var semaphore = new Semaphore(1, 1, @"Global\MailKit.Pooling.Smtp4DevStress");
-        var acquired = await Task.Run(() => semaphore.WaitOne(TimeSpan.FromMinutes(2))).ConfigureAwait(false);
-        if (!acquired)
+        Semaphore? semaphore = null;
+        FileStream? lockFileStream = null;
+
+        if (OperatingSystem.IsWindows())
         {
-            semaphore.Dispose();
-            throw new TimeoutException("Timed out while waiting for the smtp4dev stress lock.");
+            semaphore = new Semaphore(1, 1, "MailKit.Pooling.Smtp4DevStress");
+            var acquired = await Task.Run(() => semaphore.WaitOne(TimeSpan.FromMinutes(2))).ConfigureAwait(false);
+            if (!acquired)
+            {
+                semaphore.Dispose();
+                throw new TimeoutException("Timed out while waiting for the smtp4dev stress lock.");
+            }
+        }
+        else
+        {
+            lockFileStream = await AcquireFileLockAsync(TimeSpan.FromMinutes(2)).ConfigureAwait(false);
         }
 
-        return new Smtp4DevStressHarness(semaphore);
+        var manageDockerLifecycle = !string.Equals(
+            Environment.GetEnvironmentVariable(ManageDockerEnvironmentVariable),
+            "0",
+            StringComparison.Ordinal);
+        var smtpHost = Environment.GetEnvironmentVariable(SmtpHostEnvironmentVariable) ?? "localhost";
+        var smtpPort = int.TryParse(Environment.GetEnvironmentVariable(SmtpPortEnvironmentVariable), out var parsedPort)
+            ? parsedPort
+            : 2525;
+        var apiBaseAddress = new Uri(
+            Environment.GetEnvironmentVariable(ApiBaseEnvironmentVariable)
+            ?? "http://localhost:5080");
+
+        return new Smtp4DevStressHarness(semaphore, lockFileStream, manageDockerLifecycle, smtpHost, smtpPort, apiBaseAddress);
     }
 
     public async Task EnsureStartedAsync()
     {
-        await RunDockerComposeAsync("up", "-d", "--force-recreate").ConfigureAwait(false);
+        if (manageDockerLifecycle)
+        {
+            await RunDockerComposeAsync("up", "-d", "--force-recreate").ConfigureAwait(false);
+        }
+
         await WaitForAvailabilityAsync(isAvailable: true, TimeSpan.FromSeconds(30)).ConfigureAwait(false);
     }
 
     public async Task StopAsync()
     {
+        if (!manageDockerLifecycle)
+        {
+            throw new InvalidOperationException("StopAsync is not available when smtp4dev lifecycle is managed externally.");
+        }
+
         await RunDockerComposeAsync("down").ConfigureAwait(false);
         await WaitForAvailabilityAsync(isAvailable: false, TimeSpan.FromSeconds(15)).ConfigureAwait(false);
     }
 
     public async Task RestoreAsync()
     {
+        if (!manageDockerLifecycle)
+        {
+            throw new InvalidOperationException("RestoreAsync is not available when smtp4dev lifecycle is managed externally.");
+        }
+
         await RunDockerComposeAsync("up", "-d", "--force-recreate").ConfigureAwait(false);
         await WaitForAvailabilityAsync(isAvailable: true, TimeSpan.FromSeconds(30)).ConfigureAwait(false);
     }
@@ -97,21 +156,48 @@ internal sealed class Smtp4DevStressHarness : IAsyncDisposable
 
     public ValueTask DisposeAsync()
     {
-        semaphore.Release();
-        semaphore.Dispose();
+        if (semaphore is not null)
+        {
+            semaphore.Release();
+            semaphore.Dispose();
+        }
+
+        lockFileStream?.Dispose();
         return ValueTask.CompletedTask;
     }
 
-    private static HttpClient CreateHttpClient()
+    private static async Task<FileStream> AcquireFileLockAsync(TimeSpan timeout)
+    {
+        var startedAt = DateTimeOffset.UtcNow;
+        while (DateTimeOffset.UtcNow - startedAt < timeout)
+        {
+            try
+            {
+                return new FileStream(
+                    StressLockFilePath,
+                    FileMode.OpenOrCreate,
+                    FileAccess.ReadWrite,
+                    FileShare.None);
+            }
+            catch (IOException)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(200)).ConfigureAwait(false);
+            }
+        }
+
+        throw new TimeoutException("Timed out while waiting for the smtp4dev stress lock.");
+    }
+
+    private HttpClient CreateHttpClient()
     {
         return new HttpClient
         {
-            BaseAddress = ApiBaseAddress,
+            BaseAddress = apiBaseAddress,
             Timeout = TimeSpan.FromSeconds(3),
         };
     }
 
-    private static async Task WaitForAvailabilityAsync(bool isAvailable, TimeSpan timeout)
+    private async Task WaitForAvailabilityAsync(bool isAvailable, TimeSpan timeout)
     {
         using var httpClient = CreateHttpClient();
         var startedAt = DateTimeOffset.UtcNow;
@@ -141,39 +227,66 @@ internal sealed class Smtp4DevStressHarness : IAsyncDisposable
 
     private static async Task RunDockerComposeAsync(params string[] arguments)
     {
+        var composeViaDocker = await TryRunProcessAsync(
+            "docker",
+            ["compose", "-f", ComposeFilePath, .. arguments]).ConfigureAwait(false);
+        if (composeViaDocker.ExitCode == 0)
+        {
+            return;
+        }
+
+        var composeViaDockerCompose = await TryRunProcessAsync(
+            "docker-compose",
+            ["-f", ComposeFilePath, .. arguments]).ConfigureAwait(false);
+        if (composeViaDockerCompose.ExitCode == 0)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"docker compose failed.{Environment.NewLine}" +
+            $"docker:{Environment.NewLine}{composeViaDocker.StdOut}{Environment.NewLine}{composeViaDocker.StdErr}{Environment.NewLine}" +
+            $"docker-compose:{Environment.NewLine}{composeViaDockerCompose.StdOut}{Environment.NewLine}{composeViaDockerCompose.StdErr}");
+    }
+
+    private static async Task<ProcessResult> TryRunProcessAsync(string fileName, IEnumerable<string> arguments)
+    {
         var startInfo = new ProcessStartInfo
         {
-            FileName = "docker",
+            FileName = fileName,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
         };
 
-        startInfo.ArgumentList.Add("compose");
-        startInfo.ArgumentList.Add("-f");
-        startInfo.ArgumentList.Add(ComposeFilePath);
         foreach (var argument in arguments)
         {
             startInfo.ArgumentList.Add(argument);
         }
 
-        using var process = new Process { StartInfo = startInfo };
-        process.Start();
-        var stdoutTask = process.StandardOutput.ReadToEndAsync();
-        var stderrTask = process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync().ConfigureAwait(false);
-
-        var stdout = await stdoutTask.ConfigureAwait(false);
-        var stderr = await stderrTask.ConfigureAwait(false);
-        if (process.ExitCode != 0)
+        try
         {
-            throw new InvalidOperationException(
-                $"docker compose failed with exit code {process.ExitCode}.{Environment.NewLine}{stdout}{Environment.NewLine}{stderr}");
+            using var process = new Process { StartInfo = startInfo };
+            process.Start();
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            var stderrTask = process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync().ConfigureAwait(false);
+
+            return new ProcessResult(
+                process.ExitCode,
+                await stdoutTask.ConfigureAwait(false),
+                await stderrTask.ConfigureAwait(false));
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or Win32Exception)
+        {
+            return new ProcessResult(-1, string.Empty, ex.ToString());
         }
     }
 
     private sealed record PagedResult<T>(IReadOnlyList<T> Results);
 
     private sealed record MessageSummary(string Subject);
+
+    private sealed record ProcessResult(int ExitCode, string StdOut, string StdErr);
 }

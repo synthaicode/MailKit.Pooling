@@ -1,0 +1,17 @@
+FROM mcr.microsoft.com/dotnet/sdk:8.0.421
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends iproute2 net-tools docker.io docker-compose \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+COPY . .
+
+ENV MAILKIT_POOLING_RUN_STRESS=1
+ENV MAILKIT_POOLING_STRESS_MANAGED_BY_HARNESS=0
+ENV MAILKIT_POOLING_STRESS_SMTP_HOST=smtp4dev-1
+ENV MAILKIT_POOLING_STRESS_SMTP_PORT=25
+ENV MAILKIT_POOLING_STRESS_API_BASE=http://smtp4dev-1
+
+CMD ["dotnet", "test", "tests/MailKit.Pooling.StressTests/MailKit.Pooling.StressTests.csproj", "--filter", "FullyQualifiedName~NaiveVsPooledComparisonTests", "-m:1"]

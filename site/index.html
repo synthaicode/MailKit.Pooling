@@ -230,6 +230,8 @@ catch (SmtpSendFailedException ex) when (ex.Classification.Kind == SmtpFailureKi
         <li>naive per-send MailKit: 40 sends, 40 connection creations, 1145 ms, TIME_WAIT 0 to 1</li>
         <li>pooled sender: 40 sends, 8 connection creations, 277 ms, TIME_WAIT 1 to 1</li>
         <li>reconnect suppression scenario: 8 reconnect attempts, 4 suppressed reconnects, 12 outage failures, 6 recovery successes, 4 final successes</li>
+        <li>Linux Docker validation: naive 625 ms with TIME_WAIT 0 to 0 via <code>ss</code>, pooled 231 ms with TIME_WAIT 0 to 0 via <code>ss</code></li>
+        <li>Linux Docker reconnect validation: 6 reconnect attempts, 15 suppressed reconnects, 12 outage failures, 6 recovery successes, 4 final successes</li>
       </ul>
       <p class="note">
         These are environment-specific measurements, not universal guarantees.
@@ -240,7 +242,7 @@ catch (SmtpSendFailedException ex) when (ex.Classification.Kind == SmtpFailureKi
       <h2>Current Limits</h2>
       <ul>
         <li>The public metrics surface is not finalized yet.</li>
-        <li>TIME_WAIT observation is Windows-first and not implemented for Linux or macOS.</li>
+        <li>TIME_WAIT observation is implemented for Windows, Linux, and macOS in the stress harness; Windows and Linux are recorded, macOS is still unverified.</li>
         <li>Stress/resource validation is manual, not part of the default fast test path.</li>
         <li>Multi-host priority and weight exist, but broader circuit-breaker behavior and more advanced balancing policies remain future work.</li>
       </ul>

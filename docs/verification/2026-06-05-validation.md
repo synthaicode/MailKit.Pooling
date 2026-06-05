@@ -89,5 +89,8 @@ Observed sample values:
 ## Notes
 
 - Stress execution required Docker access beyond the default sandbox.
-- TIME_WAIT observation is Windows-first via `Get-NetTCPConnection`.
+- TIME_WAIT observation was validated on Windows via `Get-NetTCPConnection`.
+- Linux TIME_WAIT observation was also exercised later in Docker with the stress runner container against `smtp4dev-1` on the compose network. That run used `ss` as the observer source and produced `naive: 625 ms, TIME_WAIT 0 -> 0` and `pooled: 231 ms, TIME_WAIT 0 -> 0`.
+- Linux reconnect-storm validation was also exercised later in Docker with the stress runner container and Docker socket access. That run produced `reconnect attempts: 6`, `suppressed reconnects: 15`, `outage failures: 12`, `recovery successes: 6`, and `final successes: 4`.
+- macOS observer implementation exists in the stress harness but remains unverified.
 - These measurements are environment-specific observations, not universal guarantees.

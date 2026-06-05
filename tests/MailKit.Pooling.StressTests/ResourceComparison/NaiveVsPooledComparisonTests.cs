@@ -22,7 +22,7 @@ public sealed class NaiveVsPooledComparisonTests
 
         var totalSends = 40;
         var concurrency = 8;
-        var timeWaitObserver = new WindowsTimeWaitObserver();
+        var timeWaitObserver = TimeWaitObserverFactory.CreateDefault();
 
         var naive = await RunNaiveAsync(harness, totalSends, concurrency, timeWaitObserver);
         var pooled = await RunPooledAsync(harness, totalSends, concurrency, timeWaitObserver);
@@ -42,7 +42,7 @@ public sealed class NaiveVsPooledComparisonTests
         int concurrency,
         ITimeWaitObserver timeWaitObserver)
     {
-        var before = await timeWaitObserver.ObserveAsync(2525);
+        var before = await timeWaitObserver.ObserveAsync(harness.SmtpPort);
         var stopwatch = Stopwatch.StartNew();
         var failures = 0;
         var successes = 0;
@@ -59,7 +59,7 @@ public sealed class NaiveVsPooledComparisonTests
                 try
                 {
                     using var client = new SmtpClient();
-                    await client.ConnectAsync("localhost", 2525, SecureSocketOptions.None, cancellationToken);
+                    await client.ConnectAsync(harness.SmtpHost, harness.SmtpPort, SecureSocketOptions.None, cancellationToken);
                     await client.SendAsync(harness.CreateMessage(subject, "naive body"), cancellationToken);
                     await client.DisconnectAsync(true, cancellationToken);
                     Interlocked.Increment(ref successes);
@@ -72,7 +72,7 @@ public sealed class NaiveVsPooledComparisonTests
 
         stopwatch.Stop();
         await Task.Delay(TimeSpan.FromSeconds(1));
-        var after = await timeWaitObserver.ObserveAsync(2525);
+        var after = await timeWaitObserver.ObserveAsync(harness.SmtpPort);
 
         return new SendRunResult(
             "naive",
@@ -97,8 +97,8 @@ public sealed class NaiveVsPooledComparisonTests
         {
             Host = new SmtpHostOptions
             {
-                Host = "localhost",
-                Port = 2525,
+                Host = harness.SmtpHost,
+                Port = harness.SmtpPort,
                 SecureSocketOptions = "None",
             },
             MaxPoolSize = concurrency,
@@ -114,7 +114,7 @@ public sealed class NaiveVsPooledComparisonTests
         await using var pool = new SmtpPool(options, factory, metrics: metrics);
         var sender = new SmtpSender(pool, new DefaultSmtpErrorClassifier(), options, metrics: metrics);
 
-        var before = await timeWaitObserver.ObserveAsync(2525);
+        var before = await timeWaitObserver.ObserveAsync(harness.SmtpPort);
         var stopwatch = Stopwatch.StartNew();
         var failures = 0;
         var successes = 0;
@@ -141,7 +141,7 @@ public sealed class NaiveVsPooledComparisonTests
 
         stopwatch.Stop();
         await Task.Delay(TimeSpan.FromSeconds(1));
-        var after = await timeWaitObserver.ObserveAsync(2525);
+        var after = await timeWaitObserver.ObserveAsync(harness.SmtpPort);
         var snapshot = pool.GetSnapshot();
 
         return new SendRunResult(
