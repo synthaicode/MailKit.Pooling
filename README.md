@@ -58,6 +58,7 @@ The initial package does not aim to provide:
 See the design documents under `docs/` for the current boundary, API direction, and open decisions.
 
 For intended usage scenarios, see `docs/design/use-cases.md`.
+For guidance on selecting option values, see `docs/design/option-tuning.md`.
 
 ## Quick Start
 
@@ -141,6 +142,31 @@ It is not intended to replace:
 - bulk marketing infrastructure
 
 See `docs/design/use-cases.md` for the fuller boundary and decision rule.
+
+## Choosing Option Values
+
+The example values in `Quick Start` are starting points only.
+
+Choose values in this order:
+
+1. set expected concurrent send volume
+2. size `MaxPoolSize` and `MinPoolSize`
+3. set `AcquireTimeout` from caller-facing wait tolerance
+4. set `ConnectTimeout`, `AuthenticateTimeout`, and `SendTimeout` from real SMTP latency
+5. set `ReconnectCooldown`, `MaxRetryAttempts`, and `RetryBaseDelay` from outage and retry tolerance
+6. set host `Priority` and `Weight` from failover and load-sharing intent
+
+Practical defaults for many transactional systems are:
+
+- `MinPoolSize = 0`
+- `MaxPoolSize = 4` to `16`
+- `AcquireTimeout = 2` to `15` seconds for API paths
+- `IdleTimeout = 1` to `5` minutes
+- `KeepAliveInterval = 30` to `120` seconds when idle drops are suspected
+- `ReconnectCooldown = 5` to `30` seconds
+- `MaxRetryAttempts = 0` or `1`
+
+See `docs/design/option-tuning.md` for per-option decision rules, increase/decrease signals, and multi-host tuning guidance.
 
 ## Send Failures
 

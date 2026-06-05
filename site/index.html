@@ -199,6 +199,25 @@ catch (SmtpSendFailedException ex) when (ex.Classification.Kind == SmtpFailureKi
     </section>
 
     <section class="section">
+      <h2>Choosing Option Values</h2>
+      <p>
+        The Quick Start values are starting points, not universal defaults.
+        Tune them from concurrency, SMTP latency, outage behavior, and caller wait tolerance.
+      </p>
+      <ul>
+        <li>Set <code>MaxPoolSize</code> from allowed concurrent sends, not CPU count.</li>
+        <li>Keep <code>MinPoolSize</code> at <code>0</code> unless steady traffic justifies warm idle connections.</li>
+        <li>Set <code>AcquireTimeout</code> from how long callers are allowed to wait.</li>
+        <li>Set <code>ConnectTimeout</code>, <code>AuthenticateTimeout</code>, and <code>SendTimeout</code> from real SMTP latency.</li>
+        <li>Set <code>ReconnectCooldown</code> long enough to suppress reconnect storms, but short enough to recover promptly.</li>
+        <li>Keep <code>MaxRetryAttempts</code> small; this library is not a durable retry engine.</li>
+      </ul>
+      <p class="note">
+        The fuller tuning guide is documented in <code>docs/design/option-tuning.md</code>.
+      </p>
+    </section>
+
+    <section class="section">
       <h2>Important Options</h2>
       <table class="options">
         <thead>
