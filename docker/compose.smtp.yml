@@ -1,0 +1,6 @@
+services:
+  smtp4dev-1:
+    image: rnwood/smtp4dev:latest
+    ports:
+      - "2525:25"
+      - "5080:80"

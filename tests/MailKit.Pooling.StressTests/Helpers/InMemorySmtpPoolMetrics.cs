@@ -1,0 +1,38 @@
+using System.Collections.Concurrent;
+using MailKit.Pooling.Abstractions;
+using MailKit.Pooling.Metrics;
+
+namespace MailKit.Pooling.StressTests.Helpers;
+
+internal sealed class InMemorySmtpPoolMetrics : ISmtpPoolMetrics
+{
+    private readonly ConcurrentQueue<SmtpPoolMetricEvent> events = new();
+
+    public IReadOnlyCollection<SmtpPoolMetricEvent> Events => events.ToArray();
+
+    public void Record(SmtpPoolMetricEvent metricEvent)
+    {
+        ArgumentNullException.ThrowIfNull(metricEvent);
+        events.Enqueue(metricEvent);
+    }
+
+    public int Count(string metricName)
+    {
+        return Events.Count(metricEvent => string.Equals(metricEvent.Name, metricName, StringComparison.Ordinal));
+    }
+
+    public double Sum(string metricName)
+    {
+        return Events
+            .Where(metricEvent => string.Equals(metricEvent.Name, metricName, StringComparison.Ordinal))
+            .Sum(metricEvent => metricEvent.Value);
+    }
+
+    public IReadOnlyDictionary<string, int> ClassificationCounts()
+    {
+        return Events
+            .Where(metricEvent => string.Equals(metricEvent.Name, SmtpMetricNames.ErrorClassifications, StringComparison.Ordinal))
+            .GroupBy(metricEvent => metricEvent.Reason ?? "unknown", StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
+    }
+}

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>MailKit.Pooling</AssemblyName>
+    <RootNamespace>MailKit.Pooling</RootNamespace>
+    <Description>Guarded SMTP connection pooling on top of MailKit.</Description>
+    <PackageId>MailKit.Pooling</PackageId>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MailKit" Version="4.16.0" />
+  </ItemGroup>
+</Project>

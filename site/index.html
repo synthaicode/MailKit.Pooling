@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MailKit.Pooling</title>
+  <meta name="description" content="Guarded SMTP connection pooling on top of MailKit for .NET.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <p class="eyebrow">MailKit.Pooling</p>
+      <h1>SMTP connection control for .NET on top of MailKit</h1>
+      <p class="lede">
+        Reuse SMTP connections safely, avoid per-request client churn, bound waiting,
+        classify failures, and suppress reconnect storms.
+      </p>
+      <div class="actions">
+        <a class="button primary" href="#quick-start">Quick Start</a>
+        <a class="button secondary" href="#verification">Verification</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="grid two">
+      <article class="card">
+        <h2>What It Solves</h2>
+        <ul>
+          <li>Per-request SMTP connect and dispose</li>
+          <li>TIME_WAIT and ephemeral port pressure</li>
+          <li>Reuse of broken SMTP sessions</li>
+          <li>Reconnect storms during outages</li>
+          <li>Unbounded waiting when the pool is exhausted</li>
+          <li>Blind retry when delivery may already be ambiguous</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h2>What It Does Not Do</h2>
+        <ul>
+          <li>No template rendering</li>
+          <li>No notification orchestration</li>
+          <li>No durable queue or guaranteed delivery layer</li>
+          <li>No non-SMTP transport abstraction</li>
+        </ul>
+      </article>
+    </section>
+
+    <section id="quick-start" class="section">
+      <h2>Quick Start</h2>
+      <p>
+        Register the pool once in DI, then send through <code>ISmtpSender</code>.
+        The default path is sender-oriented. Application code should not <code>new SmtpClient()</code> for each request.
+      </p>
+      <pre><code class="language-csharp">using MailKit.Pooling.Abstractions;
+using MailKit.Pooling.DependencyInjection;
+using MailKit.Pooling.Options;
+using MimeKit;
+
+var services = new ServiceCollection();
+
+services.AddMailKitPooling(options =&gt;
+{
+    options.Host = new SmtpHostOptions
+    {
+        Host = "smtp.example.com",
+        Port = 587,
+        SecureSocketOptions = "StartTls",
+        UserName = "smtp-user",
+        Password = "smtp-password",
+    };
+
+    options.MinPoolSize = 0;
+    options.MaxPoolSize = 8;
+    options.AcquireTimeout = TimeSpan.FromSeconds(15);
+    options.IdleTimeout = TimeSpan.FromMinutes(2);
+    options.KeepAliveInterval = TimeSpan.FromMinutes(1);
+    options.ConnectTimeout = TimeSpan.FromSeconds(15);
+    options.AuthenticateTimeout = TimeSpan.FromSeconds(15);
+    options.SendTimeout = TimeSpan.FromSeconds(30);
+    options.ReconnectCooldown = TimeSpan.FromSeconds(30);
+    options.MaxRetryAttempts = 1;
+    options.RetryBaseDelay = TimeSpan.FromSeconds(2);
+});
+
+var provider = services.BuildServiceProvider();
+var sender = provider.GetRequiredService&lt;ISmtpSender&gt;();
+
+var message = new MimeMessage();
+message.From.Add(MailboxAddress.Parse("from@example.com"));
+message.To.Add(MailboxAddress.Parse("to@example.com"));
+message.Subject = "Hello";
+message.Body = new TextPart("plain") { Text = "Hello from MailKit.Pooling" };
+
+var result = await sender.SendAsync(message);
+Console.WriteLine($"Sent via {result.EndpointKey} in {result.Attempts} attempt(s).");</code></pre>
+    </section>
+
+    <section id="verification" class="section">
+      <h2>Usage Model</h2>
+      <div class="grid three">
+        <article class="card">
+          <h3>Acquire</h3>
+          <p>The pool leases a single SMTP connection to one caller at a time.</p>
+        </article>
+        <article class="card">
+          <h3>Send</h3>
+          <p><code>ISmtpSender</code> sends one message through that lease and returns or invalidates the connection.</p>
+        </article>
+        <article class="card">
+          <h3>Recover</h3>
+          <p>Failures are classified. Retry and reconnect cooldown decisions follow the classification and stage.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Thread Safety</h2>
+      <p>
+        MailKit itself is not thread-safe. This library does not try to make a single
+        <code>SmtpClient</code> concurrently usable. Instead, it prevents concurrent reuse by design:
+        one lease maps to one connection, and one connection is never leased to more than one caller at the same time.
+      </p>
+      <p>
+        The safe path is <code>ISmtpSender</code>. Advanced callers should treat a leased client as exclusive ownership until return or invalidation.
+      </p>
+    </section>
+
+    <section class="section">
+      <h2>Important Options</h2>
+      <table class="options">
+        <thead>
+          <tr>
+            <th>Option</th>
+            <th>Purpose</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>MinPoolSize</code></td><td>Warm idle connections to keep ready.</td></tr>
+          <tr><td><code>MaxPoolSize</code></td><td>Hard upper bound for simultaneously live connections.</td></tr>
+          <tr><td><code>AcquireTimeout</code></td><td>Maximum wait for a lease before explicit failure.</td></tr>
+          <tr><td><code>IdleTimeout</code></td><td>Discard stale idle connections instead of keeping them forever.</td></tr>
+          <tr><td><code>KeepAliveInterval</code></td><td>Issue NOOP on stale idle connections before reuse.</td></tr>
+          <tr><td><code>ConnectTimeout</code></td><td>Bound connect duration.</td></tr>
+          <tr><td><code>AuthenticateTimeout</code></td><td>Bound authenticate duration.</td></tr>
+          <tr><td><code>SendTimeout</code></td><td>Bound send duration.</td></tr>
+          <tr><td><code>ReconnectCooldown</code></td><td>Suppress immediate connection recreation after failure.</td></tr>
+          <tr><td><code>MaxRetryAttempts</code></td><td>Retry budget for explicitly retryable failures only.</td></tr>
+          <tr><td><code>RetryBaseDelay</code></td><td>Base delay used for retry backoff.</td></tr>
+          <tr><td><code>EnableMetrics</code></td><td>Emit metrics through the configured metrics implementation.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>Failure Semantics</h2>
+      <ul>
+        <li><code>PoolExhausted</code>: bounded wait expired before a lease became available.</li>
+        <li><code>RetryableBeforeSend</code>: safe to retry on a fresh connection before the <code>DATA</code> ambiguity boundary.</li>
+        <li><code>RetryableTemporaryFailure</code>: SMTP temporary failure within retry budget.</li>
+        <li><code>PermanentFailure</code>: do not retry automatically.</li>
+        <li><code>UnknownAfterData</code>: delivery outcome may already be ambiguous; do not blindly retry.</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>Verification Snapshot</h2>
+      <p>The repository currently includes:</p>
+      <ul>
+        <li>unit tests</li>
+        <li>component tests</li>
+        <li>Docker-backed <code>smtp4dev</code> integration tests</li>
+        <li>manual stress/resource tests gated behind <code>MAILKIT_POOLING_RUN_STRESS=1</code></li>
+      </ul>
+      <p>Recent manual observations on Windows against <code>smtp4dev</code>:</p>
+      <ul>
+        <li>naive per-send MailKit: 40 sends, 40 connection creations, 1125 ms, TIME_WAIT 14 to 16</li>
+        <li>pooled sender: 40 sends, 8 connection creations, 311 ms, TIME_WAIT 16 to 16</li>
+        <li>reconnect suppression scenario: 8 reconnect attempts, 4 suppressed reconnects, 12 outage failures, 6 recovery successes, 4 final successes</li>
+      </ul>
+      <p class="note">
+        These are environment-specific measurements, not universal guarantees.
+      </p>
+    </section>
+
+    <section class="section">
+      <h2>Current Limits</h2>
+      <ul>
+        <li>The public metrics surface is not finalized yet.</li>
+        <li>TIME_WAIT observation is Windows-first and not implemented for Linux or macOS.</li>
+        <li>Stress/resource validation is manual, not part of the default fast test path.</li>
+        <li>Multi-host failover and broader circuit-breaker behavior remain future work.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
