@@ -213,20 +213,27 @@ Do not log:
 - credentials
 - high-cardinality recipient data by default
 
-## Current Implementation Gap
+## Current Design Boundary
 
 The current code already emits `System.Diagnostics.Metrics` metrics under the
 `mailkit.*` naming contract described above.
 
-What remains incomplete is not basic metric collection, but the public
-compatibility and customization story around that implementation.
+The metrics implementation types and abstraction remain `internal` by design.
+That is intentional. The library currently exposes metrics for collection, but
+does not expose a public customization surface for replacing or extending the
+internal metrics pipeline.
+
+This document should therefore be read as the current operational contract and
+design intent for emitted metrics, not as a statement that metrics collection is
+still incomplete.
+
+## Open Compatibility Questions
+
+The remaining open questions are about compatibility and extension policy, not
+about whether metrics are available today.
 
 In particular:
 
-- the metrics implementation types and abstraction remain `internal`
 - the repository has not yet declared a long-term compatibility policy for the
   metric names and tags as a formal public contract
 - custom metrics sinks or public metrics extension points are not yet exposed
-
-This document should therefore be read as the current operational contract and
-design intent, rather than as a separate future-state proposal.
