@@ -36,18 +36,20 @@ jobs:
         shell: pwsh
         run: |
           $xml = Get-Content src/MailKit.Pooling/MailKit.Pooling.csproj -Raw
-          $base = ([regex]::Match($xml, '<Version>([^<]+)</Version>')).Groups[1].Value
+          $base = ([regex]::Match($xml, '<Version>([^<]+)</Version>')).Groups[1].Value.Trim()
 
           if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
-            $suffix = '${{ inputs.versionSuffix }}'
+            $suffix = '${{ inputs.versionSuffix }}'.Trim()
             if ([string]::IsNullOrWhiteSpace($suffix)) {
               $suffix = "ci.${{ github.run_number }}"
             }
             if ($base -match '-') { $pkg = "$base.$suffix" } else { $pkg = "$base-$suffix" }
           }
           else {
-            $pkg = '${{ github.ref_name }}'.TrimStart('v')
+            $pkg = '${{ github.ref_name }}'.Trim().TrimStart('v')
           }
+
+          $pkg = $pkg.Trim()
 
           echo "base=$base" >> $env:GITHUB_OUTPUT
           echo "pkg=$pkg" >> $env:GITHUB_OUTPUT
@@ -59,7 +61,7 @@ jobs:
         run: dotnet test MailKit.Pooling.sln -c Release --no-build
 
       - name: Pack
-        run: dotnet pack src/MailKit.Pooling/MailKit.Pooling.csproj -c Release --no-build -o ./.artifacts/nuget -p:PackageVersion=${{ steps.ver.outputs.pkg }}
+        run: dotnet pack src/MailKit.Pooling/MailKit.Pooling.csproj -c Release --no-build -o ./.artifacts/nuget -p:PackageVersion="${{ steps.ver.outputs.pkg }}"
 
       - name: Create NuGet.config for GitHub Packages
         run: |

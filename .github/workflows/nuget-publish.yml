@@ -45,11 +45,14 @@ jobs:
         shell: bash
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "VERSION=${{ inputs.version }}" >> "$GITHUB_ENV"
+            VERSION_INPUT="${{ inputs.version }}"
           else
-            echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+            VERSION_INPUT="${GITHUB_REF_NAME#v}"
           fi
-          echo "Version=$VERSION"
+
+          VERSION_INPUT="$(printf '%s' "$VERSION_INPUT" | xargs)"
+          echo "VERSION=$VERSION_INPUT" >> "$GITHUB_ENV"
+          echo "Version=$VERSION_INPUT"
 
       - name: Restore
         run: dotnet restore MailKit.Pooling.sln
@@ -61,7 +64,7 @@ jobs:
         run: dotnet test MailKit.Pooling.sln -c Release --no-build
 
       - name: Pack
-        run: dotnet pack src/MailKit.Pooling/MailKit.Pooling.csproj -c Release --no-build -p:PackageVersion=${{ env.VERSION }} -o ./artifacts
+        run: dotnet pack src/MailKit.Pooling/MailKit.Pooling.csproj -c Release --no-build -p:PackageVersion="${{ env.VERSION }}" -o ./artifacts
 
       - name: Push to nuget.org
         if: env.ON_MAIN == 'true'
