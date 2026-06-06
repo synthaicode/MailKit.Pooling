@@ -35,3 +35,40 @@ internal sealed record ReconnectSuppressionScenarioResult(
     int FinalSuccessCount,
     IReadOnlyDictionary<string, int> ErrorClassifications,
     string ResultFilePath);
+
+internal sealed record LongOutageScenarioResult(
+    string ScenarioName,
+    int OutageDurationSeconds,
+    int OutageAttemptCount,
+    int OutageFailureCount,
+    int ReconnectAttempts,
+    int ConnectionCreateFailures,
+    int SuppressedReconnectCount,
+    int RecoverySuccessCount,
+    int FinalSuccessCount,
+    IReadOnlyDictionary<string, int> ErrorClassifications,
+    string ResultFilePath);
+
+internal sealed record FlappingScenarioResult(
+    string ScenarioName,
+    int CycleCount,
+    int DownSecondsPerCycle,
+    int UpSecondsPerCycle,
+    int AttemptCount,
+    int FailureCount,
+    int ReconnectAttempts,
+    int ConnectionCreateFailures,
+    int SuppressedReconnectCount,
+    int RecoverySuccessCount,
+    IReadOnlyDictionary<string, int> ErrorClassifications,
+    string ResultFilePath);
+
+internal sealed record PartialOutageScenarioResult(
+    string ScenarioName,
+    int PrimaryOutageSeconds,
+    int SecondarySuccessCountDuringPrimaryOutage,
+    int PrimaryFailureCountDuringOutage,
+    int SuppressedReconnectCount,
+    int RecoverySuccessCount,
+    IReadOnlyDictionary<string, int> ErrorClassifications,
+    string ResultFilePath);

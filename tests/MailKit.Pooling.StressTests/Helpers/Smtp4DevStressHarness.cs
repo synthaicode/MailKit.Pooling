@@ -14,12 +14,14 @@ internal sealed class Smtp4DevStressHarness : IAsyncDisposable
     private const string SmtpHostEnvironmentVariable = "MAILKIT_POOLING_STRESS_SMTP_HOST";
     private const string SmtpPortEnvironmentVariable = "MAILKIT_POOLING_STRESS_SMTP_PORT";
     private const string ApiBaseEnvironmentVariable = "MAILKIT_POOLING_STRESS_API_BASE";
+    private const string SecondaryApiBaseEnvironmentVariable = "MAILKIT_POOLING_STRESS_SECONDARY_API_BASE";
     private static readonly string StressLockFilePath = Path.Combine(Path.GetTempPath(), "MailKit.Pooling.Smtp4DevTests.lock");
 
     private readonly Semaphore? semaphore;
     private readonly FileStream? lockFileStream;
     private readonly bool manageDockerLifecycle;
     private readonly Uri apiBaseAddress;
+    private readonly Uri secondaryApiBaseAddress;
 
     private Smtp4DevStressHarness(
         Semaphore? semaphore,
@@ -27,7 +29,8 @@ internal sealed class Smtp4DevStressHarness : IAsyncDisposable
         bool manageDockerLifecycle,
         string smtpHost,
         int smtpPort,
-        Uri apiBaseAddress)
+        Uri apiBaseAddress,
+        Uri secondaryApiBaseAddress)
     {
         this.semaphore = semaphore;
         this.lockFileStream = lockFileStream;
@@ -35,11 +38,14 @@ internal sealed class Smtp4DevStressHarness : IAsyncDisposable
         SmtpHost = smtpHost;
         SmtpPort = smtpPort;
         this.apiBaseAddress = apiBaseAddress;
+        this.secondaryApiBaseAddress = secondaryApiBaseAddress;
     }
 
     public string SmtpHost { get; }
 
     public int SmtpPort { get; }
+
+    public Uri SecondaryApiBaseAddress => secondaryApiBaseAddress;
 
     public static async Task<Smtp4DevStressHarness> AcquireAsync()
     {
@@ -72,8 +78,18 @@ internal sealed class Smtp4DevStressHarness : IAsyncDisposable
         var apiBaseAddress = new Uri(
             Environment.GetEnvironmentVariable(ApiBaseEnvironmentVariable)
             ?? "http://localhost:5080");
+        var secondaryApiBaseAddress = new Uri(
+            Environment.GetEnvironmentVariable(SecondaryApiBaseEnvironmentVariable)
+            ?? "http://localhost:5081");
 
-        return new Smtp4DevStressHarness(semaphore, lockFileStream, manageDockerLifecycle, smtpHost, smtpPort, apiBaseAddress);
+        return new Smtp4DevStressHarness(
+            semaphore,
+            lockFileStream,
+            manageDockerLifecycle,
+            smtpHost,
+            smtpPort,
+            apiBaseAddress,
+            secondaryApiBaseAddress);
     }
 
     public async Task EnsureStartedAsync()
@@ -106,6 +122,28 @@ internal sealed class Smtp4DevStressHarness : IAsyncDisposable
 
         await RunDockerComposeAsync("up", "-d").ConfigureAwait(false);
         await WaitForAvailabilityAsync(isAvailable: true, TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+    }
+
+    public async Task StopServiceAsync(string serviceName, Uri apiBaseAddress)
+    {
+        if (!manageDockerLifecycle)
+        {
+            throw new InvalidOperationException("StopServiceAsync is not available when smtp4dev lifecycle is managed externally.");
+        }
+
+        await RunDockerComposeAsync("stop", serviceName).ConfigureAwait(false);
+        await WaitForAvailabilityAsync(apiBaseAddress, isAvailable: false, TimeSpan.FromSeconds(15)).ConfigureAwait(false);
+    }
+
+    public async Task RestoreServiceAsync(string serviceName, Uri apiBaseAddress)
+    {
+        if (!manageDockerLifecycle)
+        {
+            throw new InvalidOperationException("RestoreServiceAsync is not available when smtp4dev lifecycle is managed externally.");
+        }
+
+        await RunDockerComposeAsync("up", "-d", serviceName).ConfigureAwait(false);
+        await WaitForAvailabilityAsync(apiBaseAddress, isAvailable: true, TimeSpan.FromSeconds(30)).ConfigureAwait(false);
     }
 
     public MimeMessage CreateMessage(string subject, string body)
@@ -190,6 +228,11 @@ internal sealed class Smtp4DevStressHarness : IAsyncDisposable
 
     private HttpClient CreateHttpClient()
     {
+        return CreateHttpClient(apiBaseAddress);
+    }
+
+    private static HttpClient CreateHttpClient(Uri apiBaseAddress)
+    {
         return new HttpClient
         {
             BaseAddress = apiBaseAddress,
@@ -199,7 +242,12 @@ internal sealed class Smtp4DevStressHarness : IAsyncDisposable
 
     private async Task WaitForAvailabilityAsync(bool isAvailable, TimeSpan timeout)
     {
-        using var httpClient = CreateHttpClient();
+        await WaitForAvailabilityAsync(apiBaseAddress, isAvailable, timeout).ConfigureAwait(false);
+    }
+
+    private static async Task WaitForAvailabilityAsync(Uri apiBaseAddress, bool isAvailable, TimeSpan timeout)
+    {
+        using var httpClient = CreateHttpClient(apiBaseAddress);
         var startedAt = DateTimeOffset.UtcNow;
         while (DateTimeOffset.UtcNow - startedAt < timeout)
         {

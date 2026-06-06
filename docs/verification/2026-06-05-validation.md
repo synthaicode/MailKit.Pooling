@@ -7,6 +7,9 @@ This record captures the latest verification run for:
 - multi-host priority failover on real SMTP endpoints
 - multi-host weight distribution on real SMTP endpoints
 - manual stress/resource validation
+- longer-running sustained outage validation
+- repeated flapping outage validation
+- multi-host partial outage validation
 - Docker orchestration stabilization for integration and stress reruns
 
 ## Commands
@@ -68,16 +71,22 @@ Verified cases:
 
 - `NaiveVsPooledComparisonTests.Compare_Naive_And_Pooled_Smtp_Usage`
 - `ReconnectSuppressionStressTests.Suppresses_Reconnect_Storm_And_Recovers_After_Restore`
+- `LongOutagePatternsStressTests.Sustained_Long_Outage_Still_Suppresses_Reconnects_And_Recovers`
+- `FlappingPatternsStressTests.Repeated_Flapping_Outage_Still_Suppresses_Reconnects_And_Recovers`
+- `MultiHostPartialOutageStressTests.Primary_Outage_Fails_Over_To_Secondary_And_Primary_Recovers_Later`
 
 Result:
 
 - manual stress run: `2 passed`
-- latest manual stress rerun after orchestration stabilization: `6 passed`
+- latest manual stress rerun after orchestration stabilization: `9 passed`
 
 Artifacts:
 
 - `tests/MailKit.Pooling.StressTests/bin/Debug/net8.0/StressResults/20260605-122115-naive-vs-pooled-latest.json`
 - `tests/MailKit.Pooling.StressTests/bin/Debug/net8.0/StressResults/20260605-122137-reconnect-suppression-latest.json`
+- `tests/MailKit.Pooling.StressTests/bin/Debug/net8.0/StressResults/20260606-214119-long-outage-sustained-latest.json`
+- `tests/MailKit.Pooling.StressTests/bin/Debug/net8.0/StressResults/20260606-214829-flapping-outage-latest.json`
+- `tests/MailKit.Pooling.StressTests/bin/Debug/net8.0/StressResults/20260606-215337-partial-outage-latest.json`
 
 Observed sample values:
 
@@ -103,6 +112,29 @@ Observed sample values:
   - recovery successes: `6`
   - final successes: `4`
 
+- sustained 20-second outage
+  - outage attempts: `24`
+  - outage failures: `24`
+  - reconnect attempts: `22`
+  - connection-create failures: `20`
+  - suppressed reconnects: `10`
+  - recovery successes: `6`
+  - final successes: `4`
+
+- repeated flapping outage (`3x` `5s down / 5s up`)
+  - attempts: `66`
+  - failures: `24`
+  - reconnect attempts: `21`
+  - connection-create failures: `15`
+  - suppressed reconnects: `41`
+  - recovery successes: `4`
+
+- multi-host partial outage (primary-only `12s` stop)
+  - secondary successes during primary outage: `70`
+  - primary-side failures during outage: `2`
+  - suppressed reconnects: `0`
+  - recovery successes: `4`
+
 ## Orchestration Stabilization
 
 Problem observed during full reruns:
@@ -125,7 +157,7 @@ Latest rerun results after stabilization:
 - `dotnet test C:\dev\MailKit.Pooling\tests\MailKit.Pooling.IntegrationTests\MailKit.Pooling.IntegrationTests.csproj --no-build`
   - `8 passed`
 - `MAILKIT_POOLING_RUN_STRESS=1 dotnet test C:\dev\MailKit.Pooling\tests\MailKit.Pooling.StressTests\MailKit.Pooling.StressTests.csproj --no-build`
-  - `6 passed`
+  - `9 passed`
 - `dotnet test C:\dev\MailKit.Pooling\MailKit.Pooling.sln --no-build`
   - unit: `42 passed`
   - component: `7 passed`
@@ -138,5 +170,8 @@ Latest rerun results after stabilization:
 - TIME_WAIT observation was validated on Windows via `Get-NetTCPConnection`.
 - Linux TIME_WAIT observation was also exercised later in Docker with the stress runner container against `smtp4dev-1` on the compose network. That run used `ss` as the observer source and produced `naive: 625 ms, TIME_WAIT 0 -> 0` and `pooled: 231 ms, TIME_WAIT 0 -> 0`.
 - Linux reconnect-storm validation was also exercised later in Docker with the stress runner container and Docker socket access. That run produced `reconnect attempts: 6`, `suppressed reconnects: 15`, `outage failures: 12`, `recovery successes: 6`, and `final successes: 4`.
+- Linux longer-running outage validation was also exercised later in Docker with the stress runner container and Docker socket access. The sustained outage run produced `24 outage attempts`, `24 outage failures`, `22 reconnect attempts`, `20 connection-create failures`, `10 suppressed reconnects`, `6 recovery successes`, and `4 final successes`.
+- Linux flapping validation was also exercised later in Docker with the stress runner container and Docker socket access. The flapping run produced `66 attempts`, `24 failures`, `21 reconnect attempts`, `15 connection-create failures`, `41 suppressed reconnects`, and `4 recovery successes`.
+- Linux multi-host partial outage validation was also exercised later in Docker with `smtp4dev-1` stopped while `smtp4dev-2` remained alive. That run produced `70` secondary successes during primary outage, `2` primary-side failures, `0` suppressed reconnects, and `4` recovery successes.
 - macOS observer implementation exists in the stress harness but remains unverified.
 - These measurements are environment-specific observations, not universal guarantees.

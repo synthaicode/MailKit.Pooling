@@ -249,6 +249,9 @@ That record includes:
 - priority failover verification from `localhost:2525` to `localhost:2526`
 - weight distribution verification for a real `3:1` split
 - Docker orchestration stabilization for integration and manual stress execution
+- longer-running sustained outage validation
+- repeated flapping outage validation
+- multi-host partial outage validation with primary-only failure
 - the latest manual stress/resource artifact references
 
 Recent manual stress/resource evidence against `smtp4dev` produced the following sample results on Windows:
@@ -272,10 +275,16 @@ Linux reconnect-storm validation was also exercised in Docker with the stress ru
 
 - reconnect suppression scenario: 6 reconnect attempts, 15 suppressed reconnects, 12 outage failures, 6 recovery successes, 4 final successes
 
+Longer-running outage patterns were also exercised in Docker:
+
+- sustained 20-second outage: 24 outage attempts, 24 outage failures, 22 reconnect attempts, 20 connection-create failures, 10 suppressed reconnects, 6 recovery successes, 4 final successes
+- flapping outage (`3x` `5s down / 5s up`): 66 attempts, 24 failures, 21 reconnect attempts, 15 connection-create failures, 41 suppressed reconnects, 4 recovery successes
+- multi-host partial outage (primary-only `12s` stop): 70 secondary successes during primary outage, 2 primary-side failures, 0 suppressed reconnects, 4 recovery successes
+
 The latest rerun after Docker orchestration hardening also passed end-to-end:
 
 - `dotnet test MailKit.Pooling.sln --no-build`: unit `42 passed`, component `7 passed`, integration `8 passed`, stress `4 passed, 2 skipped`
-- manual stress rerun with `MAILKIT_POOLING_RUN_STRESS=1`: `6 passed`
+- manual stress rerun with `MAILKIT_POOLING_RUN_STRESS=1`: `9 passed`
 
 That stabilization changed the test harness behavior to use a shared smtp4dev lock across integration and stress runs, and to prefer `docker compose up -d` plus `docker compose stop` instead of repeated `down --force-recreate` style churn.
 
