@@ -324,7 +324,7 @@ catch (SmtpSendFailedException ex) when (ex.Classification.Kind == SmtpFailureKi
     <section class="section">
       <h2>Current Limits</h2>
       <ul>
-        <li>Metrics are emitted through <code>System.Diagnostics.Metrics</code> with the current <code>mailkit.*</code> contract, but the metrics implementation and customization surface remain internal.</li>
+        <li>Metrics are emitted through <code>System.Diagnostics.Metrics</code> with the current <code>mailkit.*</code> contract; the internal implementation is intentional, while public customization and long-term compatibility policy remain intentionally narrow.</li>
         <li>TIME_WAIT observation is implemented for Windows, Linux, and macOS in the stress harness; Windows and Linux are recorded, macOS is still unverified.</li>
         <li>Stress/resource validation is manual, not part of the default fast test path.</li>
         <li>Multi-host priority and weight exist, but broader circuit-breaker behavior and more advanced balancing policies remain future work.</li>
