@@ -9,8 +9,17 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace MailKit.Pooling.DependencyInjection;
 
+/// <summary>
+/// Registers MailKit.Pooling services into dependency injection.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Adds the MailKit.Pooling sender, pool, and supporting services.
+    /// </summary>
+    /// <param name="services">The service collection to update.</param>
+    /// <param name="configure">The pool configuration callback.</param>
+    /// <returns>The original service collection.</returns>
     public static IServiceCollection AddMailKitPooling(
         this IServiceCollection services,
         Action<SmtpPoolOptions> configure)

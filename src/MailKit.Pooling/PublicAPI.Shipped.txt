@@ -4,18 +4,13 @@ MailKit.Pooling.Abstractions.ISmtpSender.SendAsync(MimeKit.MimeMessage! message,
 MailKit.Pooling.DependencyInjection.ServiceCollectionExtensions
 static MailKit.Pooling.DependencyInjection.ServiceCollectionExtensions.AddMailKitPooling(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<MailKit.Pooling.Options.SmtpPoolOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 MailKit.Pooling.Errors.SmtpFailureClassification
-MailKit.Pooling.Errors.SmtpFailureClassification.SmtpFailureClassification(MailKit.Pooling.Errors.SmtpFailureKind Kind, MailKit.Pooling.Errors.SmtpSendStage Stage, bool IsRetryAllowed, bool ShouldDiscardConnection, string! Reason) -> void
+MailKit.Pooling.Errors.SmtpFailureClassification.SmtpFailureClassification(MailKit.Pooling.Errors.SmtpFailureKind kind, MailKit.Pooling.Errors.SmtpSendStage stage, bool isRetryAllowed, bool shouldDiscardConnection, string! reason) -> void
 MailKit.Pooling.Errors.SmtpFailureClassification.IsRetryAllowed.get -> bool
-MailKit.Pooling.Errors.SmtpFailureClassification.IsRetryAllowed.set -> void
 MailKit.Pooling.Errors.SmtpFailureClassification.IsTerminal.get -> bool
 MailKit.Pooling.Errors.SmtpFailureClassification.Kind.get -> MailKit.Pooling.Errors.SmtpFailureKind
-MailKit.Pooling.Errors.SmtpFailureClassification.Kind.set -> void
 MailKit.Pooling.Errors.SmtpFailureClassification.Reason.get -> string!
-MailKit.Pooling.Errors.SmtpFailureClassification.Reason.set -> void
 MailKit.Pooling.Errors.SmtpFailureClassification.ShouldDiscardConnection.get -> bool
-MailKit.Pooling.Errors.SmtpFailureClassification.ShouldDiscardConnection.set -> void
 MailKit.Pooling.Errors.SmtpFailureClassification.Stage.get -> MailKit.Pooling.Errors.SmtpSendStage
-MailKit.Pooling.Errors.SmtpFailureClassification.Stage.set -> void
 MailKit.Pooling.Errors.SmtpFailureKind
 MailKit.Pooling.Errors.SmtpFailureKind.ConnectionCorrupted = 3 -> MailKit.Pooling.Errors.SmtpFailureKind
 MailKit.Pooling.Errors.SmtpFailureKind.HostUnavailable = 6 -> MailKit.Pooling.Errors.SmtpFailureKind
@@ -94,11 +89,7 @@ MailKit.Pooling.Options.SmtpPoolOptions.UseExponentialBackoff.get -> bool
 MailKit.Pooling.Options.SmtpPoolOptions.UseExponentialBackoff.set -> void
 MailKit.Pooling.Sending.SmtpSendResult
 MailKit.Pooling.Sending.SmtpSendResult.AcceptedAtUtc.get -> System.DateTimeOffset
-MailKit.Pooling.Sending.SmtpSendResult.AcceptedAtUtc.set -> void
 MailKit.Pooling.Sending.SmtpSendResult.Attempts.get -> int
-MailKit.Pooling.Sending.SmtpSendResult.Attempts.set -> void
 MailKit.Pooling.Sending.SmtpSendResult.ConnectionId.get -> System.Guid
-MailKit.Pooling.Sending.SmtpSendResult.ConnectionId.set -> void
 MailKit.Pooling.Sending.SmtpSendResult.EndpointKey.get -> string!
-MailKit.Pooling.Sending.SmtpSendResult.EndpointKey.set -> void
-MailKit.Pooling.Sending.SmtpSendResult.SmtpSendResult(System.Guid ConnectionId, string! EndpointKey, System.DateTimeOffset AcceptedAtUtc, int Attempts) -> void
+MailKit.Pooling.Sending.SmtpSendResult.SmtpSendResult(System.Guid connectionId, string! endpointKey, System.DateTimeOffset acceptedAtUtc, int attempts) -> void
