@@ -215,14 +215,18 @@ Do not log:
 
 ## Current Implementation Gap
 
-The current code already emits internal metric events, but the stable public
-metrics contract is not fully aligned yet.
+The current code already emits `System.Diagnostics.Metrics` metrics under the
+`mailkit.*` naming contract described above.
 
-In particular, the implementation still needs to move toward:
+What remains incomplete is not basic metric collection, but the public
+compatibility and customization story around that implementation.
 
-- gauges for current state instead of treating every metric alike
-- explicit histograms for wait and duration
-- stable public metric names under the `mailkit.*` prefix
-- consistent `smtp.host` tagging
+In particular:
 
-This document is the intended contract to implement toward.
+- the metrics implementation types and abstraction remain `internal`
+- the repository has not yet declared a long-term compatibility policy for the
+  metric names and tags as a formal public contract
+- custom metrics sinks or public metrics extension points are not yet exposed
+
+This document should therefore be read as the current operational contract and
+design intent, rather than as a separate future-state proposal.

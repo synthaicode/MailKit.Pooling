@@ -297,12 +297,15 @@ catch (SmtpSendFailedException ex) when (ex.Classification.Kind == SmtpFailureKi
       <p class="note">
         These are environment-specific measurements, not universal guarantees.
       </p>
+      <p class="note">
+        Benchmark and performance-oriented documentation should stay evidence-based and should only be updated when new measurements are collected on the intended target environment.
+      </p>
     </section>
 
     <section class="section">
       <h2>Current Limits</h2>
       <ul>
-        <li>The public metrics surface is not finalized yet.</li>
+        <li>Metrics are emitted through <code>System.Diagnostics.Metrics</code> with the current <code>mailkit.*</code> contract, but the metrics implementation and customization surface remain internal.</li>
         <li>TIME_WAIT observation is implemented for Windows, Linux, and macOS in the stress harness; Windows and Linux are recorded, macOS is still unverified.</li>
         <li>Stress/resource validation is manual, not part of the default fast test path.</li>
         <li>Multi-host priority and weight exist, but broader circuit-breaker behavior and more advanced balancing policies remain future work.</li>

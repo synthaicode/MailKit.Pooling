@@ -251,6 +251,10 @@ Recent manual stress/resource evidence against `smtp4dev` produced the following
 
 These numbers come from the generated JSON artifacts under `tests/MailKit.Pooling.StressTests/bin/Debug/net8.0/StressResults/` and should be treated as environment-specific observations, not universal benchmarks.
 
+README benchmark and performance-oriented statements should remain
+evidence-based and should be updated only when new measurements are collected on
+the intended target environment.
+
 Additional Linux validation was also exercised in Docker using the stress test container and the same `smtp4dev` target. In that run, the TIME_WAIT observer source was `ss`, and the sample result was:
 
 - naive per-send MailKit: 40 sends, 40 connection creations, 625 ms, TIME_WAIT 0 -> 0
@@ -271,8 +275,7 @@ That stabilization changed the test harness behavior to use a shared smtp4dev lo
 
 The following areas are still incomplete or intentionally limited:
 
-- metrics currently flow through an internal event-style abstraction and `System.Diagnostics.Metrics`, but the stable public metrics surface is not finalized
+- metrics are emitted through `System.Diagnostics.Metrics` with the current `mailkit.*` contract, but the implementation and customization surface remain internal
 - TIME_WAIT observation is implemented for Windows, Linux, and macOS in the stress harness; recorded validation currently covers Windows and Linux, while macOS remains unverified
 - stress/resource scenarios are manual and are not part of normal fast test execution
 - reconnect-storm validation exists, but harsher and longer-running outage patterns have not been broadened yet
-- README claims should remain evidence-based; update benchmark-oriented statements only when new measurements are collected on the intended target environment
