@@ -295,4 +295,4 @@ The following areas are still incomplete or intentionally limited:
 - metrics are emitted through `System.Diagnostics.Metrics` with the current `mailkit.*` contract, but the implementation and customization surface remain internal
 - TIME_WAIT observation is implemented for Windows, Linux, and macOS in the stress harness; recorded validation currently covers Windows and Linux, while macOS remains unverified
 - stress/resource scenarios are manual and are not part of normal fast test execution
-- reconnect-storm validation exists, but harsher and longer-running outage patterns have not been broadened yet
+- reconnect validation now includes sustained outages, repeated flapping, and multi-host partial outage scenarios, but more advanced fault injection patterns such as latency shaping or packet blackholing still remain future work
