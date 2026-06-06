@@ -184,7 +184,7 @@ public sealed class Smtp4DevMultiHostTests
 
     private static async Task EnsureMultiHostStartedAsync()
     {
-        await RunDockerComposeAsync("up", "-d", "--force-recreate");
+        await RunDockerComposeAsync("up", "-d");
         await WaitForAvailabilityAsync(PrimaryApiBaseAddress, isAvailable: true, TimeSpan.FromSeconds(30));
         await WaitForAvailabilityAsync(SecondaryApiBaseAddress, isAvailable: true, TimeSpan.FromSeconds(30));
     }

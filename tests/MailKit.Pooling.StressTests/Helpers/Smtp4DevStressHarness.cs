@@ -14,7 +14,7 @@ internal sealed class Smtp4DevStressHarness : IAsyncDisposable
     private const string SmtpHostEnvironmentVariable = "MAILKIT_POOLING_STRESS_SMTP_HOST";
     private const string SmtpPortEnvironmentVariable = "MAILKIT_POOLING_STRESS_SMTP_PORT";
     private const string ApiBaseEnvironmentVariable = "MAILKIT_POOLING_STRESS_API_BASE";
-    private static readonly string StressLockFilePath = Path.Combine(Path.GetTempPath(), "MailKit.Pooling.Smtp4DevStress.lock");
+    private static readonly string StressLockFilePath = Path.Combine(Path.GetTempPath(), "MailKit.Pooling.Smtp4DevTests.lock");
 
     private readonly Semaphore? semaphore;
     private readonly FileStream? lockFileStream;
@@ -48,7 +48,7 @@ internal sealed class Smtp4DevStressHarness : IAsyncDisposable
 
         if (OperatingSystem.IsWindows())
         {
-            semaphore = new Semaphore(1, 1, "MailKit.Pooling.Smtp4DevStress");
+            semaphore = new Semaphore(1, 1, @"Global\MailKit.Pooling.Smtp4DevTests");
             var acquired = await Task.Run(() => semaphore.WaitOne(TimeSpan.FromMinutes(2))).ConfigureAwait(false);
             if (!acquired)
             {
@@ -80,7 +80,7 @@ internal sealed class Smtp4DevStressHarness : IAsyncDisposable
     {
         if (manageDockerLifecycle)
         {
-            await RunDockerComposeAsync("up", "-d", "--force-recreate").ConfigureAwait(false);
+            await RunDockerComposeAsync("up", "-d").ConfigureAwait(false);
         }
 
         await WaitForAvailabilityAsync(isAvailable: true, TimeSpan.FromSeconds(30)).ConfigureAwait(false);
@@ -93,7 +93,7 @@ internal sealed class Smtp4DevStressHarness : IAsyncDisposable
             throw new InvalidOperationException("StopAsync is not available when smtp4dev lifecycle is managed externally.");
         }
 
-        await RunDockerComposeAsync("down").ConfigureAwait(false);
+        await RunDockerComposeAsync("stop").ConfigureAwait(false);
         await WaitForAvailabilityAsync(isAvailable: false, TimeSpan.FromSeconds(15)).ConfigureAwait(false);
     }
 
@@ -104,7 +104,7 @@ internal sealed class Smtp4DevStressHarness : IAsyncDisposable
             throw new InvalidOperationException("RestoreAsync is not available when smtp4dev lifecycle is managed externally.");
         }
 
-        await RunDockerComposeAsync("up", "-d", "--force-recreate").ConfigureAwait(false);
+        await RunDockerComposeAsync("up", "-d").ConfigureAwait(false);
         await WaitForAvailabilityAsync(isAvailable: true, TimeSpan.FromSeconds(30)).ConfigureAwait(false);
     }
 

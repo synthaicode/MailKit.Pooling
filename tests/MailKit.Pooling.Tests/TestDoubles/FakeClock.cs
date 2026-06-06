@@ -6,6 +6,7 @@ internal sealed class FakeClock : IClock
 {
     private readonly object sync = new();
     private readonly List<PendingDelay> delays = [];
+    private int delayCallCount;
 
     public FakeClock(DateTimeOffset initialTime)
     {
@@ -14,8 +15,12 @@ internal sealed class FakeClock : IClock
 
     public DateTimeOffset UtcNow { get; private set; }
 
+    public int DelayCallCount => Volatile.Read(ref delayCallCount);
+
     public Task Delay(TimeSpan delay, CancellationToken cancellationToken)
     {
+        Interlocked.Increment(ref delayCallCount);
+
         lock (sync)
         {
             if (delay <= TimeSpan.Zero)

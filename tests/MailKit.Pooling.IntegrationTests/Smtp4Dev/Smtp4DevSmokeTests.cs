@@ -358,17 +358,17 @@ public sealed class Smtp4DevSmokeTests
 
     private static Task StartSmtp4DevAsync()
     {
-        return RunDockerComposeAsync("up", "-d", "--force-recreate");
+        return RunDockerComposeAsync("up", "-d");
     }
 
     private static Task StopSmtp4DevAsync()
     {
-        return RunDockerComposeAsync("down");
+        return RunDockerComposeAsync("stop");
     }
 
     private static async Task ResumeSmtp4DevAsync()
     {
-        await RunDockerComposeAsync("up", "-d", "--force-recreate");
+        await RunDockerComposeAsync("up", "-d");
     }
 
     private static async Task RunDockerComposeAsync(params string[] arguments)

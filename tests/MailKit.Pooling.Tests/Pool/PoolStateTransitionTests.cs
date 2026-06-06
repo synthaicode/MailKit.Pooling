@@ -155,6 +155,41 @@ public sealed class PoolStateTransitionTests
     }
 
     [Fact]
+    public async Task Blocked_Acquire_Busy_Spins_When_Stale_Return_Signal_Remains()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        factory.Enqueue(new FakeSmtpClientAdapter());
+
+        await using var pool = new SmtpPool(
+            CreateOptions(maxPoolSize: 1, acquireTimeout: TimeSpan.FromMinutes(1)),
+            factory,
+            clock);
+
+        var lease = await pool.AcquireLeaseAsync();
+        const int stalePermitCount = 5;
+        for (var i = 0; i < stalePermitCount; i++)
+        {
+            await lease.ReturnAsync();
+            lease = await pool.AcquireLeaseAsync();
+        }
+
+        var delayCallsBeforeBlockedAcquire = clock.DelayCallCount;
+        var blockedAcquire = pool.AcquireLeaseAsync();
+
+        Assert.True(
+            SpinWait.SpinUntil(
+                () => clock.DelayCallCount >= delayCallsBeforeBlockedAcquire + stalePermitCount,
+                TimeSpan.FromSeconds(1)),
+            "Expected blocked acquire to repeatedly recreate delay waits after consuming accumulated stale return signals.");
+        Assert.False(blockedAcquire.IsCompleted);
+
+        await lease.ReturnAsync();
+        var resumedLease = await blockedAcquire;
+        await resumedLease.ReturnAsync();
+    }
+
+    [Fact]
     public async Task Broken_Connection_Is_Not_Reused()
     {
         var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));

@@ -17,6 +17,7 @@ public sealed class SmtpPool : IAsyncDisposable
     private readonly object sync = new();
     private readonly Dictionary<Guid, PooledConnection> connections = new();
     private readonly Queue<Guid> idleConnectionIds = new();
+    private readonly SemaphoreSlim connectionReturnedSignal = new(0);
     private bool disposed;
     private int pendingConnectionCreations;
     private int waitingCallers;
@@ -219,7 +220,7 @@ public sealed class SmtpPool : IAsyncDisposable
                 }
 
                 var nextDelay = ComputeWaitDuration(clock.UtcNow, deadline);
-                await clock.Delay(nextDelay, cancellationToken).ConfigureAwait(false);
+                await WaitForConnectionAvailabilityAsync(nextDelay, cancellationToken).ConfigureAwait(false);
             }
         }
         finally
@@ -269,6 +270,7 @@ public sealed class SmtpPool : IAsyncDisposable
             await DisposeConnectionAsync(connection, CancellationToken.None, "shutdown").ConfigureAwait(false);
         }
 
+        connectionReturnedSignal.Dispose();
         RecordCurrentState();
     }
 
@@ -298,6 +300,7 @@ public sealed class SmtpPool : IAsyncDisposable
             {
                 connection.LastReturnedAt = clock.UtcNow;
                 idleConnectionIds.Enqueue(connectionId);
+                connectionReturnedSignal.Release();
             }
         }
 
@@ -512,6 +515,24 @@ public sealed class SmtpPool : IAsyncDisposable
             : TimeSpan.FromMilliseconds(25);
 
         return cooldownWait < remaining ? cooldownWait : remaining;
+    }
+
+    private async Task WaitForConnectionAvailabilityAsync(TimeSpan nextDelay, CancellationToken cancellationToken)
+    {
+        using var waitCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var timerTask = clock.Delay(nextDelay, waitCts.Token);
+        var returnedSignalTask = connectionReturnedSignal.WaitAsync(waitCts.Token);
+
+        await Task.WhenAny(timerTask, returnedSignalTask).ConfigureAwait(false);
+        await waitCts.CancelAsync().ConfigureAwait(false);
+
+        try
+        {
+            await Task.WhenAll(timerTask, returnedSignalTask).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (waitCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+        }
     }
 
     private async Task<PooledConnection> CreateLeasedConnectionAsync(HostRuntimeState hostState, CancellationToken cancellationToken)

@@ -7,6 +7,7 @@ This record captures the latest verification run for:
 - multi-host priority failover on real SMTP endpoints
 - multi-host weight distribution on real SMTP endpoints
 - manual stress/resource validation
+- Docker orchestration stabilization for integration and stress reruns
 
 ## Commands
 
@@ -19,6 +20,20 @@ $env:MAILKIT_POOLING_RUN_STRESS='1'
 dotnet test C:\dev\MailKit.Pooling\tests\MailKit.Pooling.StressTests\MailKit.Pooling.StressTests.csproj --no-build
 
 docker compose -f C:\dev\MailKit.Pooling\docker\compose.smtp.yml down
+```
+
+Latest stabilization rerun:
+
+```powershell
+docker compose -f C:\dev\MailKit.Pooling\docker\compose.smtp.yml down --remove-orphans
+
+dotnet build C:\dev\MailKit.Pooling\MailKit.Pooling.sln -m:1
+dotnet test C:\dev\MailKit.Pooling\tests\MailKit.Pooling.IntegrationTests\MailKit.Pooling.IntegrationTests.csproj --no-build
+
+$env:MAILKIT_POOLING_RUN_STRESS='1'
+dotnet test C:\dev\MailKit.Pooling\tests\MailKit.Pooling.StressTests\MailKit.Pooling.StressTests.csproj --no-build
+
+dotnet test C:\dev\MailKit.Pooling\MailKit.Pooling.sln --no-build
 ```
 
 ## Integration Cases
@@ -45,6 +60,7 @@ Verified cases:
 Result:
 
 - filtered integration run: `2 passed`
+- latest full integration rerun after orchestration stabilization: `8 passed`
 
 ## Manual Stress Cases
 
@@ -56,6 +72,7 @@ Verified cases:
 Result:
 
 - manual stress run: `2 passed`
+- latest manual stress rerun after orchestration stabilization: `6 passed`
 
 Artifacts:
 
@@ -85,6 +102,35 @@ Observed sample values:
   - outage failures: `12`
   - recovery successes: `6`
   - final successes: `4`
+
+## Orchestration Stabilization
+
+Problem observed during full reruns:
+
+- integration and manual stress both manipulated the same `smtp4dev` compose stack
+- repeated `docker compose down` and `up --force-recreate` caused container-name conflicts and transient missing-network failures during back-to-back test execution
+- stress and integration used different cross-process lock names, so solution-level reruns and manual stress reruns were not serialized through one shared smtp4dev lifecycle gate
+
+Applied test-harness changes:
+
+- unified the shared smtp4dev lock name across integration and stress paths
+- changed compose startup to `docker compose up -d`
+- changed outage simulation from `docker compose down` to `docker compose stop`
+- kept explicit pre-run cleanup with `docker compose down --remove-orphans` for full verification
+
+Latest rerun results after stabilization:
+
+- `dotnet build C:\dev\MailKit.Pooling\MailKit.Pooling.sln -m:1`
+  - success
+- `dotnet test C:\dev\MailKit.Pooling\tests\MailKit.Pooling.IntegrationTests\MailKit.Pooling.IntegrationTests.csproj --no-build`
+  - `8 passed`
+- `MAILKIT_POOLING_RUN_STRESS=1 dotnet test C:\dev\MailKit.Pooling\tests\MailKit.Pooling.StressTests\MailKit.Pooling.StressTests.csproj --no-build`
+  - `6 passed`
+- `dotnet test C:\dev\MailKit.Pooling\MailKit.Pooling.sln --no-build`
+  - unit: `42 passed`
+  - component: `7 passed`
+  - integration: `8 passed`
+  - stress: `4 passed, 2 skipped`
 
 ## Notes
 

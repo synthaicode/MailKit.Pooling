@@ -13,6 +13,8 @@ It exists to stop application teams from implementing unsafe SMTP client lifecyc
 
 This repository intentionally focuses on SMTP connection control. It does not provide template rendering, notification orchestration, durable queuing, or bulk-marketing features.
 
+![MailKit.Pooling overview](docs/assets/Mailkit.PoolOverview.png)
+
 ## Current repository status
 
 This repository currently contains:
@@ -221,6 +223,7 @@ That record includes:
 - Docker-backed multi-host integration on two real SMTP endpoints
 - priority failover verification from `localhost:2525` to `localhost:2526`
 - weight distribution verification for a real `3:1` split
+- Docker orchestration stabilization for integration and manual stress execution
 - the latest manual stress/resource artifact references
 
 Recent manual stress/resource evidence against `smtp4dev` produced the following sample results on Windows:
@@ -239,6 +242,13 @@ Additional Linux validation was also exercised in Docker using the stress test c
 Linux reconnect-storm validation was also exercised in Docker with the stress runner container managing `smtp4dev` lifecycle through the Docker socket. In that run, the sample reconnect result was:
 
 - reconnect suppression scenario: 6 reconnect attempts, 15 suppressed reconnects, 12 outage failures, 6 recovery successes, 4 final successes
+
+The latest rerun after Docker orchestration hardening also passed end-to-end:
+
+- `dotnet test MailKit.Pooling.sln --no-build`: unit `42 passed`, component `7 passed`, integration `8 passed`, stress `4 passed, 2 skipped`
+- manual stress rerun with `MAILKIT_POOLING_RUN_STRESS=1`: `6 passed`
+
+That stabilization changed the test harness behavior to use a shared smtp4dev lock across integration and stress runs, and to prefer `docker compose up -d` plus `docker compose stop` instead of repeated `down --force-recreate` style churn.
 
 ## Remaining Gaps
 
