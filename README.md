@@ -2,6 +2,8 @@
 
 `MailKit.Pooling` is a .NET OSS library for guarded SMTP connection reuse on top of [MailKit](https://github.com/jstedfast/MailKit).
 
+Project site: [https://synthaicode.org/MailKit.Pooling/](https://synthaicode.org/MailKit.Pooling/)
+
 It exists to stop application teams from implementing unsafe SMTP client lifecycle code such as:
 
 - creating and disposing a new SMTP client per request
