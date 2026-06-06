@@ -261,6 +261,19 @@ catch (SmtpSendFailedException ex) when (ex.Classification.Kind == SmtpFailureKi
     </section>
 
     <section class="section">
+      <h2>Telemetry Highlights</h2>
+      <ul>
+        <li><code>mailkit.pool.host.cooldown.active</code>: host-scoped gauge showing whether new connection creation is currently suppressed by cooldown.</li>
+        <li><code>mailkit.pool.host.available</code>: host-scoped gauge showing whether a host is currently eligible for new connection creation.</li>
+        <li><code>mailkit.pool.lease.duration</code>: histogram showing how long pooled leases stay checked out before return or invalidation.</li>
+        <li><code>mailkit.pool.keepalive.failure.count</code>: counter for idle keepalive <code>NOOP</code> failures before reuse.</li>
+      </ul>
+      <p class="note">
+        The fuller telemetry contract, including existing <code>mailkit.pool.*</code> and <code>mailkit.send.*</code> metrics, is documented in <code>docs/operation/metrics-and-logging.md</code>.
+      </p>
+    </section>
+
+    <section class="section">
       <h2>Failure Semantics</h2>
       <ul>
         <li><code>PoolExhausted</code>: bounded wait expired before a lease became available.</li>

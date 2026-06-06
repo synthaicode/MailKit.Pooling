@@ -63,6 +63,26 @@ only as a general send failure.
   - `0` during sustained traffic may indicate an undersized pool
   - a consistently high value may indicate over-allocation
 
+#### `mailkit.pool.host.cooldown.active`
+
+- instrument: `gauge`
+- meaning: whether a given SMTP host is currently in reconnect cooldown
+- tags:
+  - `smtp.host`
+- interpretation:
+  - `1` means new connection creation for that host is currently suppressed
+  - useful for confirming host-scoped cooldown during outages or failover
+
+#### `mailkit.pool.host.available`
+
+- instrument: `gauge`
+- meaning: whether a given SMTP host is currently eligible for new connection creation
+- tags:
+  - `smtp.host`
+- interpretation:
+  - `0` means the host is temporarily unavailable for pool growth, typically because it is in cooldown
+  - useful alongside `mailkit.pool.host.cooldown.active` when comparing multiple hosts
+
 #### `mailkit.pool.acquire.wait_time`
 
 - instrument: `histogram`
@@ -77,6 +97,17 @@ only as a general send failure.
 - meaning: number of pool-exhaustion outcomes
 - interpretation:
   - non-zero values indicate callers timed out waiting for a lease
+
+#### `mailkit.pool.lease.duration`
+
+- instrument: `histogram`
+- unit: time
+- meaning: time that a pooled lease remains checked out before being returned or invalidated
+- tags:
+  - `smtp.host`
+- interpretation:
+  - helps separate long caller-held leases from SMTP send duration itself
+  - long tails can indicate pool starvation caused by slow callers or long-running sends
 
 ### Connection Lifecycle
 
@@ -115,6 +146,16 @@ only as a general send failure.
 - meaning: number of reconnect attempts suppressed because the host was in cooldown
 - interpretation:
   - directly indicates reconnect storm suppression activity
+
+#### `mailkit.pool.keepalive.failure.count`
+
+- instrument: `counter`
+- meaning: number of keepalive `NOOP` failures observed before idle connection reuse
+- tags:
+  - `smtp.host`
+- interpretation:
+  - isolates stale or unstable idle connections even when overall drop counts are aggregated elsewhere
+  - complements `mailkit.pool.connections.dropped{reason=keepalive_failure}`
 
 ### Send Path
 

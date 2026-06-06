@@ -1,4 +1,5 @@
 using MailKit.Pooling.Errors;
+using MailKit.Pooling.Metrics;
 using MailKit.Pooling.Options;
 using MailKit.Pooling.Pooling;
 using MailKit.Pooling.Tests.TestDoubles;
@@ -399,6 +400,7 @@ public sealed class PoolStateTransitionTests
     {
         var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
         var factory = new FakeSmtpConnectionFactory();
+        var metrics = new RecordingSmtpPoolMetrics();
         var staleClient = new FakeSmtpClientAdapter
         {
             OnNoOpAsync = static _ => Task.FromException(new TimeoutException("noop timed out")),
@@ -412,7 +414,8 @@ public sealed class PoolStateTransitionTests
                 keepAliveInterval: TimeSpan.FromSeconds(5),
                 reconnectCooldown: TimeSpan.Zero),
             factory,
-            clock);
+            clock,
+            metrics);
 
         var lease = await pool.AcquireLeaseAsync();
         await lease.ReturnAsync();
@@ -423,8 +426,66 @@ public sealed class PoolStateTransitionTests
         Assert.Equal(1, staleClient.NoOpCalls);
         Assert.Equal(1, staleClient.DisposeCalls);
         Assert.Same(replacementClient, replacementLease.Client);
+        Assert.Equal(1, metrics.Count(SmtpMetricNames.PoolKeepAliveFailureCount));
+        var keepAliveMetric = metrics.Latest(SmtpMetricNames.PoolKeepAliveFailureCount);
+        Assert.True(keepAliveMetric is not null, metrics.Dump());
+        Assert.Equal("localhost:587", keepAliveMetric!.SmtpHost);
 
         await replacementLease.ReturnAsync();
+    }
+
+    [Fact]
+    public async Task Lease_Duration_Is_Recorded_When_A_Lease_Is_Returned()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        var metrics = new RecordingSmtpPoolMetrics();
+        var client = new FakeSmtpClientAdapter();
+        factory.Enqueue(client);
+
+        await using var pool = new SmtpPool(CreateOptions(), factory, clock, metrics);
+
+        var lease = await pool.AcquireLeaseAsync();
+        clock.Advance(TimeSpan.FromSeconds(3));
+        await lease.ReturnAsync();
+
+        var metric = metrics.Latest(SmtpMetricNames.PoolLeaseDuration);
+        Assert.True(metric is not null, metrics.Dump());
+        Assert.Equal(SmtpMetricInstrumentKind.Histogram, metric!.InstrumentKind);
+        Assert.Equal("localhost:587", metric.SmtpHost);
+        Assert.Equal(3000, metric.Value);
+    }
+
+    [Fact]
+    public async Task Host_Cooldown_And_Availability_Gauges_Reflect_Cooldown_State()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        var metrics = new RecordingSmtpPoolMetrics();
+        factory.Enqueue(new FakeSmtpClientAdapter { EndpointKey = "smtp-a.local:2525" });
+        factory.Enqueue(new FakeSmtpClientAdapter { EndpointKey = "smtp-b.local:2526" });
+
+        await using var pool = new SmtpPool(
+            CreateMultiHostOptions(reconnectCooldown: TimeSpan.FromSeconds(30)),
+            factory,
+            clock,
+            metrics);
+
+        var lease = await pool.AcquireLeaseAsync();
+        await lease.InvalidateAsync();
+
+        Assert.Equal(1, metrics.Latest(SmtpMetricNames.PoolHostCooldownActive, "smtp-a.local:2525")!.Value);
+        Assert.Equal(0, metrics.Latest(SmtpMetricNames.PoolHostAvailable, "smtp-a.local:2525")!.Value);
+        Assert.Equal(0, metrics.Latest(SmtpMetricNames.PoolHostCooldownActive, "smtp-b.local:2526")!.Value);
+        Assert.Equal(1, metrics.Latest(SmtpMetricNames.PoolHostAvailable, "smtp-b.local:2526")!.Value);
+
+        clock.Advance(TimeSpan.FromSeconds(31));
+        var recoveredLease = await pool.AcquireLeaseAsync();
+
+        Assert.Equal(0, metrics.Latest(SmtpMetricNames.PoolHostCooldownActive, "smtp-a.local:2525")!.Value);
+        Assert.Equal(1, metrics.Latest(SmtpMetricNames.PoolHostAvailable, "smtp-a.local:2525")!.Value);
+
+        await recoveredLease.ReturnAsync();
     }
 
     [Fact]

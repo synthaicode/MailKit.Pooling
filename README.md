@@ -84,6 +84,12 @@ For intended telemetry design, see `docs/operation/metrics-and-logging.md`.
 For NuGet release preparation, see `docs/release/nuget-publish-checklist.md`.
 For release-facing notes, see `docs/release/0.1.0.md` and `CHANGELOG.md`.
 
+The current telemetry contract includes:
+
+- pool state gauges such as `mailkit.pool.connections.active`, `mailkit.pool.connections.idle`, `mailkit.pool.host.cooldown.active`, and `mailkit.pool.host.available`
+- pressure and lifecycle metrics such as `mailkit.pool.acquire.wait_time`, `mailkit.pool.lease.duration`, `mailkit.pool.connections.created`, `mailkit.pool.connections.dropped`, and `mailkit.pool.keepalive.failure.count`
+- send-path metrics such as `mailkit.send.duration`, `mailkit.send.failed.count`, `mailkit.send.ambiguous.count`, and `mailkit.send.classification.count`
+
 ## Quick Start
 
 Register the pool once in DI, then send through `ISmtpSender`.

@@ -10,12 +10,14 @@ internal sealed class SmtpConnectionLease : IAsyncDisposable
     internal SmtpConnectionLease(
         SmtpPool pool,
         Guid connectionId,
-        ISmtpClientAdapter client)
+        ISmtpClientAdapter client,
+        DateTimeOffset leasedAtUtc)
     {
         this.pool = pool;
         ConnectionId = connectionId;
         Client = client;
         EndpointKey = client.EndpointKey;
+        LeasedAtUtc = leasedAtUtc;
     }
 
     public Guid ConnectionId { get; }
@@ -23,6 +25,8 @@ internal sealed class SmtpConnectionLease : IAsyncDisposable
     public string EndpointKey { get; }
 
     public ISmtpClientAdapter Client { get; }
+
+    public DateTimeOffset LeasedAtUtc { get; }
 
     public ValueTask ReturnAsync(CancellationToken cancellationToken = default)
     {
@@ -46,6 +50,6 @@ internal sealed class SmtpConnectionLease : IAsyncDisposable
             return ValueTask.CompletedTask;
         }
 
-        return pool.ReturnLeaseAsync(ConnectionId, isReusable, cancellationToken);
+        return pool.ReturnLeaseAsync(ConnectionId, isReusable, LeasedAtUtc, cancellationToken);
     }
 }

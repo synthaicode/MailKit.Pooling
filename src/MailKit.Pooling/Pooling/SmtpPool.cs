@@ -175,7 +175,7 @@ internal sealed class SmtpPool : IAsyncDisposable
                     {
                         RecordAcquireWaitTime(acquireStartedAt, clock.UtcNow);
                         RecordCurrentState();
-                        return new SmtpConnectionLease(this, leasedConnection.Id, leasedConnection.Client);
+                        return new SmtpConnectionLease(this, leasedConnection.Id, leasedConnection.Client, clock.UtcNow);
                     }
 
                     continue;
@@ -199,7 +199,7 @@ internal sealed class SmtpPool : IAsyncDisposable
                             pooledConnection.HostState.EndpointKey));
                         RecordAcquireWaitTime(acquireStartedAt, clock.UtcNow);
                         RecordCurrentState();
-                        return new SmtpConnectionLease(this, pooledConnection.Id, pooledConnection.Client);
+                        return new SmtpConnectionLease(this, pooledConnection.Id, pooledConnection.Client, clock.UtcNow);
                     }
                     catch
                     {
@@ -277,9 +277,11 @@ internal sealed class SmtpPool : IAsyncDisposable
     internal async ValueTask ReturnLeaseAsync(
         Guid connectionId,
         bool isReusable,
+        DateTimeOffset leasedAtUtc,
         CancellationToken cancellationToken)
     {
         PooledConnection? connectionToDispose = null;
+        string? endpointKey = null;
 
         lock (sync)
         {
@@ -288,6 +290,7 @@ internal sealed class SmtpPool : IAsyncDisposable
                 return;
             }
 
+            endpointKey = connection.HostState.EndpointKey;
             connection.IsLeased = false;
 
             if (disposed || !isReusable || !connection.Client.IsConnected || !connection.Client.IsAuthenticated)
@@ -313,6 +316,7 @@ internal sealed class SmtpPool : IAsyncDisposable
             await EnsureMinimumPoolSizeAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        RecordLeaseDuration(leasedAtUtc, clock.UtcNow, endpointKey);
         RecordCurrentState();
     }
 
@@ -408,7 +412,12 @@ internal sealed class SmtpPool : IAsyncDisposable
                 1,
                 connection.HostState.EndpointKey,
                 Reason: "keepalive_failure"));
-            await ReturnLeaseAsync(connection.Id, isReusable: false, cancellationToken).ConfigureAwait(false);
+            metrics.Record(new SmtpPoolMetricEvent(
+                SmtpMetricNames.PoolKeepAliveFailureCount,
+                SmtpMetricInstrumentKind.Counter,
+                1,
+                connection.HostState.EndpointKey));
+            await ReturnLeaseAsync(connection.Id, isReusable: false, clock.UtcNow, cancellationToken).ConfigureAwait(false);
             return false;
         }
     }
@@ -579,6 +588,7 @@ internal sealed class SmtpPool : IAsyncDisposable
     private void RecordCurrentState()
     {
         var snapshot = GetSnapshot();
+        var now = clock.UtcNow;
         metrics.Record(new SmtpPoolMetricEvent(
             SmtpMetricNames.PoolConnectionsActive,
             SmtpMetricInstrumentKind.Gauge,
@@ -587,6 +597,21 @@ internal sealed class SmtpPool : IAsyncDisposable
             SmtpMetricNames.PoolConnectionsIdle,
             SmtpMetricInstrumentKind.Gauge,
             snapshot.IdleConnections));
+
+        foreach (var hostState in hostStates)
+        {
+            var isInCooldown = hostState.NextCreationAllowedAt is { } nextAllowedAt && nextAllowedAt > now;
+            metrics.Record(new SmtpPoolMetricEvent(
+                SmtpMetricNames.PoolHostCooldownActive,
+                SmtpMetricInstrumentKind.Gauge,
+                isInCooldown ? 1 : 0,
+                hostState.EndpointKey));
+            metrics.Record(new SmtpPoolMetricEvent(
+                SmtpMetricNames.PoolHostAvailable,
+                SmtpMetricInstrumentKind.Gauge,
+                isInCooldown ? 0 : 1,
+                hostState.EndpointKey));
+        }
     }
 
     private void RecordAcquireWaitTime(DateTimeOffset startedAt, DateTimeOffset completedAt)
@@ -601,6 +626,21 @@ internal sealed class SmtpPool : IAsyncDisposable
             SmtpMetricNames.PoolAcquireWaitTime,
             SmtpMetricInstrumentKind.Histogram,
             waitDuration.TotalMilliseconds));
+    }
+
+    private void RecordLeaseDuration(DateTimeOffset leasedAtUtc, DateTimeOffset completedAtUtc, string? smtpHost)
+    {
+        var leaseDuration = completedAtUtc - leasedAtUtc;
+        if (leaseDuration < TimeSpan.Zero)
+        {
+            leaseDuration = TimeSpan.Zero;
+        }
+
+        metrics.Record(new SmtpPoolMetricEvent(
+            SmtpMetricNames.PoolLeaseDuration,
+            SmtpMetricInstrumentKind.Histogram,
+            leaseDuration.TotalMilliseconds,
+            smtpHost));
     }
 
     private bool TrySelectHostForCreation(DateTimeOffset now, out HostRuntimeState? selectedHost)

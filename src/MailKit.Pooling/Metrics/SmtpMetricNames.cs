@@ -4,11 +4,15 @@ internal static class SmtpMetricNames
 {
     public const string PoolConnectionsActive = "mailkit.pool.connections.active";
     public const string PoolConnectionsIdle = "mailkit.pool.connections.idle";
+    public const string PoolHostCooldownActive = "mailkit.pool.host.cooldown.active";
+    public const string PoolHostAvailable = "mailkit.pool.host.available";
     public const string PoolAcquireWaitTime = "mailkit.pool.acquire.wait_time";
     public const string PoolAcquireExhaustedCount = "mailkit.pool.acquire.exhausted.count";
+    public const string PoolLeaseDuration = "mailkit.pool.lease.duration";
     public const string PoolConnectionsCreated = "mailkit.pool.connections.created";
     public const string PoolConnectionsDropped = "mailkit.pool.connections.dropped";
     public const string PoolConnectionCreateFailures = "mailkit.pool.connection.create.failures";
+    public const string PoolKeepAliveFailureCount = "mailkit.pool.keepalive.failure.count";
     public const string PoolReconnectSuppressed = "mailkit.pool.reconnect.suppressed";
     public const string SendDuration = "mailkit.send.duration";
     public const string SendSuccessCount = "mailkit.send.success.count";
