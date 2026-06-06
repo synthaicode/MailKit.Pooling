@@ -290,33 +290,4 @@ public sealed class Smtp4DevMultiHostTests
 
     private sealed record MessageSummary(string Subject);
 
-    private sealed class Smtp4DevTestLock : IAsyncDisposable
-    {
-        private readonly Semaphore semaphore;
-
-        private Smtp4DevTestLock(Semaphore semaphore)
-        {
-            this.semaphore = semaphore;
-        }
-
-        public static async Task<Smtp4DevTestLock> AcquireAsync()
-        {
-            var semaphore = new Semaphore(1, 1, @"Global\MailKit.Pooling.Smtp4DevTests");
-            var acquired = await Task.Run(() => semaphore.WaitOne(TimeSpan.FromMinutes(2))).ConfigureAwait(false);
-            if (!acquired)
-            {
-                semaphore.Dispose();
-                throw new TimeoutException("Timed out while waiting for the shared smtp4dev test lock.");
-            }
-
-            return new Smtp4DevTestLock(semaphore);
-        }
-
-        public ValueTask DisposeAsync()
-        {
-            semaphore.Release();
-            semaphore.Dispose();
-            return ValueTask.CompletedTask;
-        }
-    }
 }
