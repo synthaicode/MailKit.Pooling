@@ -2,7 +2,7 @@ using MailKit.Pooling.Abstractions;
 
 namespace MailKit.Pooling.Pooling;
 
-public sealed class SmtpConnectionLease : IAsyncDisposable
+internal sealed class SmtpConnectionLease : IAsyncDisposable
 {
     private readonly SmtpPool pool;
     private int completed;

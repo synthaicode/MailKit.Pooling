@@ -4,7 +4,7 @@ using MailKit.Pooling.Options;
 
 namespace MailKit.Pooling.MailKit;
 
-public sealed class MailKitSmtpConnectionFactory : ISmtpConnectionFactory
+internal sealed class MailKitSmtpConnectionFactory : ISmtpConnectionFactory
 {
     private readonly SmtpPoolOptions options;
     private readonly IMailKitSmtpClientFactory clientFactory;

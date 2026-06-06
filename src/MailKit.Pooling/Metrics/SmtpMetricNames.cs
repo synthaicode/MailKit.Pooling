@@ -1,6 +1,6 @@
 namespace MailKit.Pooling.Metrics;
 
-public static class SmtpMetricNames
+internal static class SmtpMetricNames
 {
     public const string PoolConnectionsActive = "mailkit.pool.connections.active";
     public const string PoolConnectionsIdle = "mailkit.pool.connections.idle";

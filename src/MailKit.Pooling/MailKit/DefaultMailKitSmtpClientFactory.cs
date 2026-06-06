@@ -2,7 +2,7 @@ using MailKit.Net.Smtp;
 
 namespace MailKit.Pooling.MailKit;
 
-public sealed class DefaultMailKitSmtpClientFactory : IMailKitSmtpClientFactory
+internal sealed class DefaultMailKitSmtpClientFactory : IMailKitSmtpClientFactory
 {
     public SmtpClient Create()
     {

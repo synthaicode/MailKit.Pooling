@@ -135,6 +135,22 @@ Console.WriteLine($"Sent via {result.EndpointKey} in {result.Attempts} attempt(s
     </section>
 
     <section class="section">
+      <h2>Intended Public Surface</h2>
+      <p>
+        The NuGet-facing API is intentionally narrow. Most pool, factory, adapter,
+        clock, metrics, and classifier implementation types are internal.
+      </p>
+      <ul>
+        <li><code>ISmtpSender</code></li>
+        <li><code>SmtpPoolOptions</code> and <code>SmtpHostOptions</code></li>
+        <li><code>SmtpSendResult</code></li>
+        <li><code>SmtpSendFailedException</code></li>
+        <li><code>SmtpFailureClassification</code>, <code>SmtpFailureKind</code>, and <code>SmtpSendStage</code></li>
+        <li><code>ServiceCollectionExtensions</code></li>
+      </ul>
+    </section>
+
+    <section class="section">
       <h2>Send Failures</h2>
       <p>
         <code>ISmtpSender.SendAsync()</code> returns <code>SmtpSendResult</code> on success.
@@ -142,7 +158,6 @@ Console.WriteLine($"Sent via {result.EndpointKey} in {result.Attempts} attempt(s
       </p>
       <ul>
         <li><code>SmtpSendFailedException</code>: inspect <code>Classification.Kind</code>, <code>Classification.Stage</code>, and <code>Attempts</code>. The original exception is preserved as <code>InnerException</code>.</li>
-        <li><code>SmtpPoolExhaustedException</code>: bounded acquire timeout. Through <code>ISmtpSender</code>, this is normally surfaced as <code>SmtpSendFailedException</code> with classification <code>PoolExhausted</code>.</li>
         <li><code>OperationCanceledException</code>: caller cancellation is returned as-is and is not wrapped.</li>
       </ul>
       <pre><code class="language-csharp">try

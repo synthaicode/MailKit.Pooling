@@ -1,6 +1,6 @@
 namespace MailKit.Pooling.Abstractions;
 
-public sealed class SystemClock : IClock
+internal sealed class SystemClock : IClock
 {
     public static SystemClock Instance { get; } = new();
 

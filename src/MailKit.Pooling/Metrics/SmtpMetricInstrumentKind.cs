@@ -1,6 +1,6 @@
 namespace MailKit.Pooling.Metrics;
 
-public enum SmtpMetricInstrumentKind
+internal enum SmtpMetricInstrumentKind
 {
     Gauge,
     Counter,

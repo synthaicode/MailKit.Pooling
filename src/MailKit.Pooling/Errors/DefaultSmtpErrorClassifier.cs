@@ -6,7 +6,7 @@ using MailKit.Pooling.Abstractions;
 
 namespace MailKit.Pooling.Errors;
 
-public sealed class DefaultSmtpErrorClassifier : ISmtpErrorClassifier
+internal sealed class DefaultSmtpErrorClassifier : ISmtpErrorClassifier
 {
     public SmtpFailureClassification Classify(Exception exception, SmtpSendStage stage)
     {

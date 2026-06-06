@@ -1,6 +1,6 @@
 namespace MailKit.Pooling.Pooling;
 
-public sealed record SmtpPoolSnapshot(
+internal sealed record SmtpPoolSnapshot(
     int TotalConnections,
     int IdleConnections,
     int LeasedConnections,

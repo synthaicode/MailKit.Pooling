@@ -27,6 +27,24 @@ This repository currently contains:
 
 It does not yet contain every planned operational feature or public observability surface.
 
+## Intended Public Surface
+
+The NuGet-facing API is intentionally narrow.
+
+Primary consumer-facing types:
+
+- `ISmtpSender`
+- `SmtpPoolOptions`
+- `SmtpHostOptions`
+- `SmtpSendResult`
+- `SmtpSendFailedException`
+- `SmtpFailureClassification`
+- `SmtpFailureKind`
+- `SmtpSendStage`
+- `ServiceCollectionExtensions`
+
+Most pool, factory, adapter, clock, metrics, and classifier implementation types are internal and not intended as package extension points.
+
 ## MVP scope
 
 The current MVP provides guarded SMTP pooling with:
@@ -55,13 +73,16 @@ The initial package does not aim to provide:
 ## Planned package shape
 
 - `MailKit.Pooling`
-- `MailKit.Pooling.DependencyInjection`
+
+The DI registration API remains available under the namespace `MailKit.Pooling.DependencyInjection`, but it is shipped inside the single `MailKit.Pooling` NuGet package rather than as a second package.
 
 See the design documents under `docs/` for the current boundary, API direction, and open decisions.
 
 For intended usage scenarios, see `docs/design/use-cases.md`.
 For guidance on selecting option values, see `docs/design/option-tuning.md`.
 For intended telemetry design, see `docs/operation/metrics-and-logging.md`.
+For NuGet release preparation, see `docs/release/nuget-publish-checklist.md`.
+For release-facing notes, see `docs/release/0.1.0.md` and `CHANGELOG.md`.
 
 ## Quick Start
 
@@ -181,10 +202,6 @@ On failure, the main exception surface is:
   - thrown when SMTP send/connect/authenticate/acquire work failed after library classification
   - inspect `Classification.Kind`, `Classification.Stage`, and `Attempts`
   - `InnerException` keeps the original MailKit, timeout, socket, or protocol exception
-
-- `SmtpPoolExhaustedException`
-  - raised internally for bounded acquire timeout
-  - when this happens through `ISmtpSender`, it is normally wrapped into `SmtpSendFailedException` with classification `PoolExhausted`
 
 - `OperationCanceledException`
   - returned as-is when the caller's `CancellationToken` is canceled

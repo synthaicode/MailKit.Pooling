@@ -4,7 +4,7 @@ using MimeKit;
 
 namespace MailKit.Pooling.MailKit;
 
-public sealed class MailKitSmtpClientAdapter : ISmtpClientAdapter
+internal sealed class MailKitSmtpClientAdapter : ISmtpClientAdapter
 {
     private readonly SmtpClient client;
     private readonly string endpointKey;

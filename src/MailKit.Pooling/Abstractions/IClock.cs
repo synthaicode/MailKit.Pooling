@@ -1,6 +1,6 @@
 namespace MailKit.Pooling.Abstractions;
 
-public interface IClock
+internal interface IClock
 {
     DateTimeOffset UtcNow { get; }
     Task Delay(TimeSpan delay, CancellationToken cancellationToken);

@@ -9,7 +9,7 @@ using MimeKit;
 
 namespace MailKit.Pooling.Sending;
 
-public sealed class SmtpSender : ISmtpSender
+internal sealed class SmtpSender : ISmtpSender
 {
     private static readonly TimeSpan LeaseCleanupTimeout = TimeSpan.FromSeconds(1);
     private readonly SmtpPool pool;

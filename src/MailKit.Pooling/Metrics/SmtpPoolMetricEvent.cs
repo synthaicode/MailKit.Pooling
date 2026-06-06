@@ -1,6 +1,6 @@
 namespace MailKit.Pooling.Metrics;
 
-public sealed record SmtpPoolMetricEvent(
+internal sealed record SmtpPoolMetricEvent(
     string Name,
     SmtpMetricInstrumentKind InstrumentKind,
     double Value,

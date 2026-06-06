@@ -2,10 +2,47 @@
   <PropertyGroup>
     <AssemblyName>MailKit.Pooling</AssemblyName>
     <RootNamespace>MailKit.Pooling</RootNamespace>
-    <Description>Guarded SMTP connection pooling on top of MailKit.</Description>
+    <Authors>SynthAICode</Authors>
+    <Company>SynthAICode</Company>
+    <Description>MailKit-based SMTP connection pooling for .NET with bounded acquisition, connection reuse, retry classification, reconnect cooldown, multi-host failover, and operational validation for safer high-volume email sending.</Description>
     <PackageId>MailKit.Pooling</PackageId>
+    <Version>0.1.0.0</Version>
+    <PackageTags>smtp;mailkit;pooling;email;mail;.net;dotnet;resilience;retry;connection-pool</PackageTags>
+    <PackageProjectUrl>https://github.com/synthaicode/MailKit.Pooling</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/synthaicode/MailKit.Pooling</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReleaseNotes>Release notes: https://github.com/synthaicode/MailKit.Pooling/releases</PackageReleaseNotes>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>Mailkit.Pool.icon.png</PackageIcon>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="MailKit" Version="4.16.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="3.3.4" PrivateAssets="all">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\MailKit.Pooling.DependencyInjection\ServiceCollectionExtensions.cs" Link="DependencyInjection\ServiceCollectionExtensions.cs" />
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\docs\assets\Mailkit.PoolOverview.png" Pack="true" PackagePath="docs\assets\" />
+    <None Include="..\..\docs\assets\Mailkit.Pool.icon.png" Pack="true" PackagePath="\" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Remove="PublicAPI.Shipped.txt" />
+    <None Remove="PublicAPI.Unshipped.txt" />
+    <Content Remove="PublicAPI.Shipped.txt" />
+    <Content Remove="PublicAPI.Unshipped.txt" />
   </ItemGroup>
 </Project>

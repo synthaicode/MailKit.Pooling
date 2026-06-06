@@ -2,7 +2,7 @@ using MailKit.Security;
 
 namespace MailKit.Pooling.MailKit;
 
-public static class MailKitSecureSocketOptionsParser
+internal static class MailKitSecureSocketOptionsParser
 {
     public static SecureSocketOptions Parse(string value)
     {

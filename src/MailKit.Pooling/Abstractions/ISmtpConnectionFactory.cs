@@ -1,6 +1,6 @@
 namespace MailKit.Pooling.Abstractions;
 
-public interface ISmtpConnectionFactory
+internal interface ISmtpConnectionFactory
 {
     Task<ISmtpClientAdapter> CreateAuthenticatedClientAsync(
         Options.SmtpHostOptions host,

@@ -1,0 +1,84 @@
+name: Publish Preview Package to GitHub Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      versionSuffix:
+        description: Pre-release suffix, for example preview.1 or ci.123
+        required: false
+  push:
+    tags:
+      - 'v*-*'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  pack-and-publish:
+    runs-on: ubuntu-latest
+    outputs:
+      packageVersion: ${{ steps.ver.outputs.pkg }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore MailKit.Pooling.sln
+
+      - name: Compute package version
+        id: ver
+        shell: pwsh
+        run: |
+          $xml = Get-Content src/MailKit.Pooling/MailKit.Pooling.csproj -Raw
+          $base = ([regex]::Match($xml, '<Version>([^<]+)</Version>')).Groups[1].Value
+
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            $suffix = '${{ inputs.versionSuffix }}'
+            if ([string]::IsNullOrWhiteSpace($suffix)) {
+              $suffix = "ci.${{ github.run_number }}"
+            }
+            if ($base -match '-') { $pkg = "$base.$suffix" } else { $pkg = "$base-$suffix" }
+          }
+          else {
+            $pkg = '${{ github.ref_name }}'.TrimStart('v')
+          }
+
+          echo "base=$base" >> $env:GITHUB_OUTPUT
+          echo "pkg=$pkg" >> $env:GITHUB_OUTPUT
+
+      - name: Build
+        run: dotnet build MailKit.Pooling.sln -c Release --no-restore -m:1
+
+      - name: Test
+        run: dotnet test MailKit.Pooling.sln -c Release --no-build
+
+      - name: Pack
+        run: dotnet pack src/MailKit.Pooling/MailKit.Pooling.csproj -c Release --no-build -o ./.artifacts/nuget -p:PackageVersion=${{ steps.ver.outputs.pkg }}
+
+      - name: Create NuGet.config for GitHub Packages
+        run: |
+          cat > NuGet.config <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <add key="github" value="https://nuget.pkg.github.com/synthaicode/index.json" />
+            </packageSources>
+            <packageSourceCredentials>
+              <github>
+                <add key="Username" value="${GITHUB_ACTOR}" />
+                <add key="ClearTextPassword" value="${GITHUB_TOKEN}" />
+              </github>
+            </packageSourceCredentials>
+          </configuration>
+          XML
+
+      - name: Push to GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: dotnet nuget push ./.artifacts/nuget/*.nupkg --skip-duplicate --source github --api-key $GITHUB_TOKEN

@@ -5,7 +5,7 @@ using MailKit.Pooling.Abstractions;
 
 namespace MailKit.Pooling.Metrics;
 
-public sealed class SystemDiagnosticsSmtpPoolMetrics : ISmtpPoolMetrics, IDisposable
+internal sealed class SystemDiagnosticsSmtpPoolMetrics : ISmtpPoolMetrics, IDisposable
 {
     private readonly Meter meter = new("MailKit.Pooling");
     private readonly object sync = new();

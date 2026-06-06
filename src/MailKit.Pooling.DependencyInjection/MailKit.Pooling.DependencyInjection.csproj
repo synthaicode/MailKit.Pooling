@@ -4,6 +4,7 @@
     <RootNamespace>MailKit.Pooling.DependencyInjection</RootNamespace>
     <Description>Dependency injection integration for MailKit.Pooling.</Description>
     <PackageId>MailKit.Pooling.DependencyInjection</PackageId>
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\MailKit.Pooling\MailKit.Pooling.csproj" />

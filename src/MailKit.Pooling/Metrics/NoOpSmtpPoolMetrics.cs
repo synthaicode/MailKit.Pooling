@@ -2,7 +2,7 @@ using MailKit.Pooling.Abstractions;
 
 namespace MailKit.Pooling.Metrics;
 
-public sealed class NoOpSmtpPoolMetrics : ISmtpPoolMetrics
+internal sealed class NoOpSmtpPoolMetrics : ISmtpPoolMetrics
 {
     public static NoOpSmtpPoolMetrics Instance { get; } = new();
 

@@ -1,6 +1,6 @@
 namespace MailKit.Pooling.Abstractions;
 
-public interface ISmtpClientAdapter : IAsyncDisposable
+internal interface ISmtpClientAdapter : IAsyncDisposable
 {
     bool IsConnected { get; }
     bool IsAuthenticated { get; }

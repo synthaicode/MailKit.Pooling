@@ -6,7 +6,7 @@ using System.Threading;
 
 namespace MailKit.Pooling.Pooling;
 
-public sealed class SmtpPool : IAsyncDisposable
+internal sealed class SmtpPool : IAsyncDisposable
 {
     private readonly ISmtpConnectionFactory connectionFactory;
     private readonly IClock clock;

@@ -1,15 +1,19 @@
-# Initial Public API Proposal
+# Public API Direction
 
 ## Consumer-facing direction
 
 The primary API should be sender-oriented, not raw-client-oriented.
 
-Candidate entry points:
+Current intended entry points:
 
 - `ISmtpSender`
-- `SmtpSendRequest`
 - `SmtpSendResult`
 - `SmtpPoolOptions`
+- `SmtpHostOptions`
+- `SmtpSendFailedException`
+- `SmtpFailureClassification`
+- `SmtpFailureKind`
+- `SmtpSendStage`
 - `IServiceCollection` registration extensions in `MailKit.Pooling.DependencyInjection`
 
 ## Internal abstractions
@@ -19,12 +23,15 @@ Candidate entry points:
 - `IClock`
 - `ISmtpErrorClassifier`
 - `ISmtpPoolMetrics`
+- `SmtpPool`
+- `SmtpConnectionLease`
+- MailKit-specific factories, adapters, and parsers
+- metrics implementation details
 
 ## Candidate exceptions / result types
 
-- `SmtpPoolExhaustedException`
-- `UnknownAfterDataException`
 - `SmtpFailureClassification`
+- `SmtpSendFailedException`
 
 ## Design note
 

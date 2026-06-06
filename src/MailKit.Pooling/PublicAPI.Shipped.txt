@@ -1,0 +1,104 @@
+#nullable enable
+MailKit.Pooling.Abstractions.ISmtpSender
+MailKit.Pooling.Abstractions.ISmtpSender.SendAsync(MimeKit.MimeMessage! message, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MailKit.Pooling.Sending.SmtpSendResult!>!
+MailKit.Pooling.DependencyInjection.ServiceCollectionExtensions
+static MailKit.Pooling.DependencyInjection.ServiceCollectionExtensions.AddMailKitPooling(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<MailKit.Pooling.Options.SmtpPoolOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+MailKit.Pooling.Errors.SmtpFailureClassification
+MailKit.Pooling.Errors.SmtpFailureClassification.SmtpFailureClassification(MailKit.Pooling.Errors.SmtpFailureKind Kind, MailKit.Pooling.Errors.SmtpSendStage Stage, bool IsRetryAllowed, bool ShouldDiscardConnection, string! Reason) -> void
+MailKit.Pooling.Errors.SmtpFailureClassification.IsRetryAllowed.get -> bool
+MailKit.Pooling.Errors.SmtpFailureClassification.IsRetryAllowed.set -> void
+MailKit.Pooling.Errors.SmtpFailureClassification.IsTerminal.get -> bool
+MailKit.Pooling.Errors.SmtpFailureClassification.Kind.get -> MailKit.Pooling.Errors.SmtpFailureKind
+MailKit.Pooling.Errors.SmtpFailureClassification.Kind.set -> void
+MailKit.Pooling.Errors.SmtpFailureClassification.Reason.get -> string!
+MailKit.Pooling.Errors.SmtpFailureClassification.Reason.set -> void
+MailKit.Pooling.Errors.SmtpFailureClassification.ShouldDiscardConnection.get -> bool
+MailKit.Pooling.Errors.SmtpFailureClassification.ShouldDiscardConnection.set -> void
+MailKit.Pooling.Errors.SmtpFailureClassification.Stage.get -> MailKit.Pooling.Errors.SmtpSendStage
+MailKit.Pooling.Errors.SmtpFailureClassification.Stage.set -> void
+MailKit.Pooling.Errors.SmtpFailureKind
+MailKit.Pooling.Errors.SmtpFailureKind.ConnectionCorrupted = 3 -> MailKit.Pooling.Errors.SmtpFailureKind
+MailKit.Pooling.Errors.SmtpFailureKind.HostUnavailable = 6 -> MailKit.Pooling.Errors.SmtpFailureKind
+MailKit.Pooling.Errors.SmtpFailureKind.PermanentFailure = 2 -> MailKit.Pooling.Errors.SmtpFailureKind
+MailKit.Pooling.Errors.SmtpFailureKind.PoolExhausted = 5 -> MailKit.Pooling.Errors.SmtpFailureKind
+MailKit.Pooling.Errors.SmtpFailureKind.RetryableBeforeSend = 0 -> MailKit.Pooling.Errors.SmtpFailureKind
+MailKit.Pooling.Errors.SmtpFailureKind.RetryableTemporaryFailure = 1 -> MailKit.Pooling.Errors.SmtpFailureKind
+MailKit.Pooling.Errors.SmtpFailureKind.UnknownAfterData = 4 -> MailKit.Pooling.Errors.SmtpFailureKind
+MailKit.Pooling.Errors.SmtpSendFailedException
+MailKit.Pooling.Errors.SmtpSendFailedException.Attempts.get -> int
+MailKit.Pooling.Errors.SmtpSendFailedException.Classification.get -> MailKit.Pooling.Errors.SmtpFailureClassification!
+MailKit.Pooling.Errors.SmtpSendFailedException.SmtpSendFailedException(string! message, MailKit.Pooling.Errors.SmtpFailureClassification! classification, int attempts, System.Exception! innerException) -> void
+MailKit.Pooling.Errors.SmtpSendStage
+MailKit.Pooling.Errors.SmtpSendStage.Authenticated = 2 -> MailKit.Pooling.Errors.SmtpSendStage
+MailKit.Pooling.Errors.SmtpSendStage.BeforeConnect = 0 -> MailKit.Pooling.Errors.SmtpSendStage
+MailKit.Pooling.Errors.SmtpSendStage.Connected = 1 -> MailKit.Pooling.Errors.SmtpSendStage
+MailKit.Pooling.Errors.SmtpSendStage.DataCompleted = 5 -> MailKit.Pooling.Errors.SmtpSendStage
+MailKit.Pooling.Errors.SmtpSendStage.DataStarted = 4 -> MailKit.Pooling.Errors.SmtpSendStage
+MailKit.Pooling.Errors.SmtpSendStage.EnvelopeStarted = 3 -> MailKit.Pooling.Errors.SmtpSendStage
+MailKit.Pooling.Errors.SmtpSendStage.ServerAccepted = 6 -> MailKit.Pooling.Errors.SmtpSendStage
+MailKit.Pooling.Options.SmtpHostOptions
+MailKit.Pooling.Options.SmtpHostOptions.Host.get -> string!
+MailKit.Pooling.Options.SmtpHostOptions.Host.set -> void
+MailKit.Pooling.Options.SmtpHostOptions.Password.get -> string?
+MailKit.Pooling.Options.SmtpHostOptions.Password.set -> void
+MailKit.Pooling.Options.SmtpHostOptions.Port.get -> int
+MailKit.Pooling.Options.SmtpHostOptions.Port.set -> void
+MailKit.Pooling.Options.SmtpHostOptions.Priority.get -> int
+MailKit.Pooling.Options.SmtpHostOptions.Priority.set -> void
+MailKit.Pooling.Options.SmtpHostOptions.SecureSocketOptions.get -> string!
+MailKit.Pooling.Options.SmtpHostOptions.SecureSocketOptions.set -> void
+MailKit.Pooling.Options.SmtpHostOptions.SmtpHostOptions() -> void
+MailKit.Pooling.Options.SmtpHostOptions.ToEndpointKey() -> string!
+MailKit.Pooling.Options.SmtpHostOptions.UserName.get -> string?
+MailKit.Pooling.Options.SmtpHostOptions.UserName.set -> void
+MailKit.Pooling.Options.SmtpHostOptions.Weight.get -> int
+MailKit.Pooling.Options.SmtpHostOptions.Weight.set -> void
+MailKit.Pooling.Options.SmtpPoolOptions
+MailKit.Pooling.Options.SmtpPoolOptions.AcquireTimeout.get -> System.TimeSpan
+MailKit.Pooling.Options.SmtpPoolOptions.AcquireTimeout.set -> void
+MailKit.Pooling.Options.SmtpPoolOptions.AuthenticateTimeout.get -> System.TimeSpan
+MailKit.Pooling.Options.SmtpPoolOptions.AuthenticateTimeout.set -> void
+MailKit.Pooling.Options.SmtpPoolOptions.ConnectTimeout.get -> System.TimeSpan
+MailKit.Pooling.Options.SmtpPoolOptions.ConnectTimeout.set -> void
+MailKit.Pooling.Options.SmtpPoolOptions.EnableKeepAlive.get -> bool
+MailKit.Pooling.Options.SmtpPoolOptions.EnableKeepAlive.set -> void
+MailKit.Pooling.Options.SmtpPoolOptions.EnableMetrics.get -> bool
+MailKit.Pooling.Options.SmtpPoolOptions.EnableMetrics.set -> void
+MailKit.Pooling.Options.SmtpPoolOptions.GetConfiguredHosts() -> System.Collections.Generic.IReadOnlyList<MailKit.Pooling.Options.SmtpHostOptions!>!
+MailKit.Pooling.Options.SmtpPoolOptions.Host.get -> MailKit.Pooling.Options.SmtpHostOptions!
+MailKit.Pooling.Options.SmtpPoolOptions.Host.set -> void
+MailKit.Pooling.Options.SmtpPoolOptions.Hosts.get -> System.Collections.Generic.List<MailKit.Pooling.Options.SmtpHostOptions!>!
+MailKit.Pooling.Options.SmtpPoolOptions.Hosts.set -> void
+MailKit.Pooling.Options.SmtpPoolOptions.IdleTimeout.get -> System.TimeSpan
+MailKit.Pooling.Options.SmtpPoolOptions.IdleTimeout.set -> void
+MailKit.Pooling.Options.SmtpPoolOptions.JitterRatio.get -> double
+MailKit.Pooling.Options.SmtpPoolOptions.JitterRatio.set -> void
+MailKit.Pooling.Options.SmtpPoolOptions.KeepAliveInterval.get -> System.TimeSpan
+MailKit.Pooling.Options.SmtpPoolOptions.KeepAliveInterval.set -> void
+MailKit.Pooling.Options.SmtpPoolOptions.MaxPoolSize.get -> int
+MailKit.Pooling.Options.SmtpPoolOptions.MaxPoolSize.set -> void
+MailKit.Pooling.Options.SmtpPoolOptions.MaxReconnectCooldown.get -> System.TimeSpan
+MailKit.Pooling.Options.SmtpPoolOptions.MaxReconnectCooldown.set -> void
+MailKit.Pooling.Options.SmtpPoolOptions.MaxRetryAttempts.get -> int
+MailKit.Pooling.Options.SmtpPoolOptions.MaxRetryAttempts.set -> void
+MailKit.Pooling.Options.SmtpPoolOptions.MinPoolSize.get -> int
+MailKit.Pooling.Options.SmtpPoolOptions.MinPoolSize.set -> void
+MailKit.Pooling.Options.SmtpPoolOptions.ReconnectCooldown.get -> System.TimeSpan
+MailKit.Pooling.Options.SmtpPoolOptions.ReconnectCooldown.set -> void
+MailKit.Pooling.Options.SmtpPoolOptions.RetryBaseDelay.get -> System.TimeSpan
+MailKit.Pooling.Options.SmtpPoolOptions.RetryBaseDelay.set -> void
+MailKit.Pooling.Options.SmtpPoolOptions.SendTimeout.get -> System.TimeSpan
+MailKit.Pooling.Options.SmtpPoolOptions.SendTimeout.set -> void
+MailKit.Pooling.Options.SmtpPoolOptions.SmtpPoolOptions() -> void
+MailKit.Pooling.Options.SmtpPoolOptions.UseExponentialBackoff.get -> bool
+MailKit.Pooling.Options.SmtpPoolOptions.UseExponentialBackoff.set -> void
+MailKit.Pooling.Sending.SmtpSendResult
+MailKit.Pooling.Sending.SmtpSendResult.AcceptedAtUtc.get -> System.DateTimeOffset
+MailKit.Pooling.Sending.SmtpSendResult.AcceptedAtUtc.set -> void
+MailKit.Pooling.Sending.SmtpSendResult.Attempts.get -> int
+MailKit.Pooling.Sending.SmtpSendResult.Attempts.set -> void
+MailKit.Pooling.Sending.SmtpSendResult.ConnectionId.get -> System.Guid
+MailKit.Pooling.Sending.SmtpSendResult.ConnectionId.set -> void
+MailKit.Pooling.Sending.SmtpSendResult.EndpointKey.get -> string!
+MailKit.Pooling.Sending.SmtpSendResult.EndpointKey.set -> void
+MailKit.Pooling.Sending.SmtpSendResult.SmtpSendResult(System.Guid ConnectionId, string! EndpointKey, System.DateTimeOffset AcceptedAtUtc, int Attempts) -> void

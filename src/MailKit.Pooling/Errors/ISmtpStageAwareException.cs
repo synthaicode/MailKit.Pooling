@@ -1,6 +1,6 @@
 namespace MailKit.Pooling.Errors;
 
-public interface ISmtpStageAwareException
+internal interface ISmtpStageAwareException
 {
     SmtpSendStage Stage { get; }
 }
