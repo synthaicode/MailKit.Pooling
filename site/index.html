@@ -92,7 +92,7 @@ services.AddMailKitPooling(options =&gt;
     options.KeepAliveInterval = TimeSpan.FromMinutes(1);
     options.ConnectTimeout = TimeSpan.FromSeconds(15);
     options.AuthenticateTimeout = TimeSpan.FromSeconds(15);
-    options.SendTimeout = TimeSpan.FromSeconds(30);
+    options.SmtpSendTimeout = TimeSpan.FromSeconds(30);
     options.ReconnectCooldown = TimeSpan.FromSeconds(30);
     options.MaxRetryAttempts = 1;
     options.RetryBaseDelay = TimeSpan.FromSeconds(2);
@@ -223,7 +223,7 @@ catch (SmtpSendFailedException ex) when (ex.Classification.Kind == SmtpFailureKi
         <li>Set <code>MaxPoolSize</code> from allowed concurrent sends, not CPU count.</li>
         <li>Keep <code>MinPoolSize</code> at <code>0</code> unless steady traffic justifies warm idle connections.</li>
         <li>Set <code>AcquireTimeout</code> from how long callers are allowed to wait.</li>
-        <li>Set <code>ConnectTimeout</code>, <code>AuthenticateTimeout</code>, and <code>SendTimeout</code> from real SMTP latency.</li>
+        <li>Set <code>ConnectTimeout</code>, <code>AuthenticateTimeout</code>, and <code>SmtpSendTimeout</code> from real SMTP latency.</li>
         <li>Set <code>ReconnectCooldown</code> long enough to suppress reconnect storms, but short enough to recover promptly.</li>
         <li>Keep <code>MaxRetryAttempts</code> small; this library is not a durable retry engine.</li>
       </ul>
@@ -249,7 +249,7 @@ catch (SmtpSendFailedException ex) when (ex.Classification.Kind == SmtpFailureKi
           <tr><td><code>KeepAliveInterval</code></td><td>Issue NOOP on stale idle connections before reuse.</td></tr>
           <tr><td><code>ConnectTimeout</code></td><td>Bound connect duration.</td></tr>
           <tr><td><code>AuthenticateTimeout</code></td><td>Bound authenticate duration.</td></tr>
-          <tr><td><code>SendTimeout</code></td><td>Bound send duration.</td></tr>
+          <tr><td><code>SmtpSendTimeout</code></td><td>Bound a single SMTP send operation.</td></tr>
           <tr><td><code>ReconnectCooldown</code></td><td>Suppress immediate connection recreation after failure.</td></tr>
           <tr><td><code>MaxRetryAttempts</code></td><td>Retry budget for explicitly retryable failures only.</td></tr>
           <tr><td><code>RetryBaseDelay</code></td><td>Base delay used for retry backoff.</td></tr>
@@ -267,6 +267,7 @@ catch (SmtpSendFailedException ex) when (ex.Classification.Kind == SmtpFailureKi
         <li><code>mailkit.pool.host.available</code>: host-scoped gauge showing whether a host is currently eligible for new connection creation.</li>
         <li><code>mailkit.pool.lease.duration</code>: histogram showing how long pooled leases stay checked out before return or invalidation.</li>
         <li><code>mailkit.pool.keepalive.failure.count</code>: counter for idle keepalive <code>NOOP</code> failures before reuse.</li>
+        <li><code>mailkit.send.definitely_not_accepted.count</code>: counter for failed sends that remained on the safe side of the SMTP ambiguity boundary.</li>
       </ul>
       <p class="note">
         The fuller telemetry contract, including existing <code>mailkit.pool.*</code> and <code>mailkit.send.*</code> metrics, is documented in <code>docs/operation/metrics-and-logging.md</code>.

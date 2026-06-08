@@ -49,7 +49,7 @@ internal sealed class SmtpSender : ISmtpSender
                 lease = await pool.AcquireLeaseAsync(cancellationToken).ConfigureAwait(false);
                 await TimeoutExecution.ExecuteAsync(
                     token => lease.Client.SendAsync(message, token),
-                    options.SendTimeout,
+                    options.SmtpSendTimeout,
                     "send",
                     cancellationToken).ConfigureAwait(false);
                 await lease.ReturnAsync(cancellationToken).ConfigureAwait(false);
@@ -135,6 +135,16 @@ internal sealed class SmtpSender : ISmtpSender
                 {
                     metrics.Record(new SmtpPoolMetricEvent(
                         SmtpMetricNames.SendAmbiguousCount,
+                        SmtpMetricInstrumentKind.Counter,
+                        1,
+                        lease?.EndpointKey,
+                        FailureKind: classification.Kind.ToString(),
+                        Stage: classification.Stage.ToString()));
+                }
+                else
+                {
+                    metrics.Record(new SmtpPoolMetricEvent(
+                        SmtpMetricNames.SendDefinitelyNotAcceptedCount,
                         SmtpMetricInstrumentKind.Counter,
                         1,
                         lease?.EndpointKey,

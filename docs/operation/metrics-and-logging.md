@@ -183,6 +183,17 @@ only as a general send failure.
   - lets operators distinguish `PoolExhausted`, `AuthFailure`,
     `RetryableBeforeSend`, `UnknownAfterData`, and similar categories
 
+#### `mailkit.send.definitely_not_accepted.count`
+
+- instrument: `counter`
+- meaning: number of failed sends that did not cross the SMTP `DATA` ambiguity boundary
+- tags:
+  - `failure_kind`
+  - `stage`
+- interpretation:
+  - excludes `UnknownAfterData`
+  - useful when operators want a conservative "not accepted" count without mixing in ambiguous outcomes
+
 #### `mailkit.send.ambiguous.count`
 
 - instrument: `counter`

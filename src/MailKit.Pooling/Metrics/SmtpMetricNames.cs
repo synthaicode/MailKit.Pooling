@@ -17,6 +17,7 @@ internal static class SmtpMetricNames
     public const string SendDuration = "mailkit.send.duration";
     public const string SendSuccessCount = "mailkit.send.success.count";
     public const string SendFailedCount = "mailkit.send.failed.count";
+    public const string SendDefinitelyNotAcceptedCount = "mailkit.send.definitely_not_accepted.count";
     public const string SendAmbiguousCount = "mailkit.send.ambiguous.count";
     public const string SendRetryCount = "mailkit.send.retry.count";
     public const string SendClassificationCount = "mailkit.send.classification.count";

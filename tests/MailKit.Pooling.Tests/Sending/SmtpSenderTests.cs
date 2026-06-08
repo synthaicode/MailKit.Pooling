@@ -1,4 +1,5 @@
 using MailKit.Pooling.Errors;
+using MailKit.Pooling.Metrics;
 using MailKit.Pooling.Options;
 using MailKit.Pooling.Pooling;
 using MailKit.Pooling.Sending;
@@ -125,6 +126,57 @@ public sealed class SmtpSenderTests
         Assert.Equal(1, exception.Attempts);
         Assert.IsType<TimeoutException>(exception.InnerException);
         Assert.Equal(1, client.DisposeCalls);
+    }
+
+    [Fact]
+    public async Task SendAsync_Records_DefinitelyNotAccepted_For_PreData_Failure()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        var metrics = new RecordingSmtpPoolMetrics();
+        var client = new FakeSmtpClientAdapter
+        {
+            OnSendAsync = static (_, _) => Task.FromException(
+                new SmtpStageAwareException(
+                    "temporary failure",
+                    SmtpSendStage.EnvelopeStarted,
+                    new TimeoutException("socket timed out"))),
+        };
+        factory.Enqueue(client);
+
+        var options = CreateOptions(reconnectCooldown: TimeSpan.Zero);
+        await using var pool = new SmtpPool(options, factory, clock);
+        var sender = new SmtpSender(pool, new DefaultSmtpErrorClassifier(), options, clock, metrics);
+
+        await Assert.ThrowsAsync<SmtpSendFailedException>(() => sender.SendAsync(CreateMessage()));
+
+        Assert.Equal(1, metrics.Count(SmtpMetricNames.SendFailedCount));
+        Assert.Equal(1, metrics.Count(SmtpMetricNames.SendDefinitelyNotAcceptedCount));
+        Assert.Equal(0, metrics.Count(SmtpMetricNames.SendAmbiguousCount));
+    }
+
+    [Fact]
+    public async Task SendAsync_Does_Not_Record_DefinitelyNotAccepted_For_Ambiguous_Failure()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        var metrics = new RecordingSmtpPoolMetrics();
+        var client = new FakeSmtpClientAdapter
+        {
+            OnSendAsync = static async (_, cancellationToken) =>
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken),
+        };
+        factory.Enqueue(client);
+
+        var options = CreateOptions(sendTimeout: TimeSpan.FromMilliseconds(50), reconnectCooldown: TimeSpan.Zero);
+        await using var pool = new SmtpPool(options, factory, clock);
+        var sender = new SmtpSender(pool, new DefaultSmtpErrorClassifier(), options, clock, metrics);
+
+        await Assert.ThrowsAsync<SmtpSendFailedException>(() => sender.SendAsync(CreateMessage()));
+
+        Assert.Equal(1, metrics.Count(SmtpMetricNames.SendFailedCount));
+        Assert.Equal(0, metrics.Count(SmtpMetricNames.SendDefinitelyNotAcceptedCount));
+        Assert.Equal(1, metrics.Count(SmtpMetricNames.SendAmbiguousCount));
     }
 
     [Fact]
@@ -338,7 +390,7 @@ public sealed class SmtpSenderTests
             MaxPoolSize = maxPoolSize,
             MinPoolSize = 0,
             AcquireTimeout = acquireTimeout ?? TimeSpan.FromSeconds(15),
-            SendTimeout = sendTimeout ?? TimeSpan.FromSeconds(30),
+            SmtpSendTimeout = sendTimeout ?? TimeSpan.FromSeconds(30),
             ReconnectCooldown = reconnectCooldown ?? TimeSpan.FromSeconds(30),
             MaxRetryAttempts = maxRetryAttempts,
             RetryBaseDelay = retryBaseDelay ?? TimeSpan.FromSeconds(2),

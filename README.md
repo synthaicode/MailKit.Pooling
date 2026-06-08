@@ -91,7 +91,7 @@ The current telemetry contract includes:
 
 - pool state gauges such as `mailkit.pool.connections.active`, `mailkit.pool.connections.idle`, `mailkit.pool.host.cooldown.active`, and `mailkit.pool.host.available`
 - pressure and lifecycle metrics such as `mailkit.pool.acquire.wait_time`, `mailkit.pool.lease.duration`, `mailkit.pool.connections.created`, `mailkit.pool.connections.dropped`, and `mailkit.pool.keepalive.failure.count`
-- send-path metrics such as `mailkit.send.duration`, `mailkit.send.failed.count`, `mailkit.send.ambiguous.count`, and `mailkit.send.classification.count`
+- send-path metrics such as `mailkit.send.duration`, `mailkit.send.failed.count`, `mailkit.send.definitely_not_accepted.count`, `mailkit.send.ambiguous.count`, and `mailkit.send.classification.count`
 
 ## Quick Start
 
