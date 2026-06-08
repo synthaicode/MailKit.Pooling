@@ -82,6 +82,7 @@ See the design documents under `docs/` for the current boundary, API direction, 
 
 For intended usage scenarios, see `docs/design/use-cases.md`.
 For guidance on selecting option values, see `docs/design/option-tuning.md`.
+For a synchronous send example with a strict request-path SLA, see `docs/design/synchronous-send-sla-sample.md`.
 For intended telemetry design, see `docs/operation/metrics-and-logging.md`.
 For NuGet release preparation, see `docs/release/nuget-publish-checklist.md`.
 For release-facing notes, see `docs/release/0.1.0.md` and `CHANGELOG.md`.
