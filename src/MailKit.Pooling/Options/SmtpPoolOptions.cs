@@ -51,9 +51,9 @@ public sealed class SmtpPoolOptions
     public TimeSpan AuthenticateTimeout { get; set; } = TimeSpan.FromSeconds(15);
 
     /// <summary>
-    /// Gets or sets the timeout applied to SMTP send operations.
+    /// Gets or sets the timeout applied to a single SMTP send operation.
     /// </summary>
-    public TimeSpan SendTimeout { get; set; } = TimeSpan.FromSeconds(30);
+    public TimeSpan SmtpSendTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
     /// Gets or sets the host cooldown after connection failures.

@@ -28,7 +28,7 @@ In that case, a durable outbox or queue is usually a better fit.
 
 ## DI Registration
 
-Configure `SendTimeout` to `2` seconds. In a strict synchronous API path,
+Configure `SmtpSendTimeout` to `2` seconds. In a strict synchronous API path,
 keep retry budget very small so retries do not silently consume the whole SLA.
 
 ```csharp
@@ -50,7 +50,7 @@ builder.Services.AddMailKitPooling(options =>
 
     options.ConnectTimeout = TimeSpan.FromSeconds(2);
     options.AuthenticateTimeout = TimeSpan.FromSeconds(2);
-    options.SendTimeout = TimeSpan.FromSeconds(2);
+    options.SmtpSendTimeout = TimeSpan.FromSeconds(2);
 
     options.AcquireTimeout = TimeSpan.FromSeconds(2);
     options.MaxRetryAttempts = 0;
@@ -96,7 +96,7 @@ builder.Services.AddMailKitPooling(options =>
 
     options.ConnectTimeout = TimeSpan.FromMilliseconds(500);
     options.AuthenticateTimeout = TimeSpan.FromMilliseconds(500);
-    options.SendTimeout = TimeSpan.FromSeconds(2);
+    options.SmtpSendTimeout = TimeSpan.FromSeconds(2);
 
     options.AcquireTimeout = TimeSpan.FromMilliseconds(250);
     options.MaxRetryAttempts = 0;
@@ -294,7 +294,7 @@ public sealed record PasswordResetMailRequest(string ToAddress, string ResetLink
 
 ## Important Boundary
 
-`SendTimeout = 2 seconds` means:
+`SmtpSendTimeout = 2 seconds` means:
 
 - the application stops waiting after 2 seconds
 - the application treats that as a failure

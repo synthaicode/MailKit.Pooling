@@ -82,9 +82,9 @@ MailKit.Pooling.Options.SmtpPoolOptions.ReconnectCooldown.get -> System.TimeSpan
 MailKit.Pooling.Options.SmtpPoolOptions.ReconnectCooldown.set -> void
 MailKit.Pooling.Options.SmtpPoolOptions.RetryBaseDelay.get -> System.TimeSpan
 MailKit.Pooling.Options.SmtpPoolOptions.RetryBaseDelay.set -> void
-MailKit.Pooling.Options.SmtpPoolOptions.SendTimeout.get -> System.TimeSpan
-MailKit.Pooling.Options.SmtpPoolOptions.SendTimeout.set -> void
 MailKit.Pooling.Options.SmtpPoolOptions.SmtpPoolOptions() -> void
+MailKit.Pooling.Options.SmtpPoolOptions.SmtpSendTimeout.get -> System.TimeSpan
+MailKit.Pooling.Options.SmtpPoolOptions.SmtpSendTimeout.set -> void
 MailKit.Pooling.Options.SmtpPoolOptions.UseExponentialBackoff.get -> bool
 MailKit.Pooling.Options.SmtpPoolOptions.UseExponentialBackoff.set -> void
 MailKit.Pooling.Sending.SmtpSendResult

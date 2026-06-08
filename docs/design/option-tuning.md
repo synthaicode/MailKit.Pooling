@@ -209,7 +209,7 @@ How to choose it:
 - start close to `ConnectTimeout`
 - if auth backends are known to be slower than connect, make it slightly larger
 
-### `SendTimeout`
+### `SmtpSendTimeout`
 
 What it controls:
 
@@ -358,7 +358,7 @@ options.IdleTimeout = TimeSpan.FromMinutes(2);
 options.KeepAliveInterval = TimeSpan.FromMinutes(1);
 options.ConnectTimeout = TimeSpan.FromSeconds(10);
 options.AuthenticateTimeout = TimeSpan.FromSeconds(10);
-options.SendTimeout = TimeSpan.FromSeconds(30);
+options.SmtpSendTimeout = TimeSpan.FromSeconds(30);
 options.ReconnectCooldown = TimeSpan.FromSeconds(15);
 options.MaxRetryAttempts = 1;
 options.RetryBaseDelay = TimeSpan.FromSeconds(1);

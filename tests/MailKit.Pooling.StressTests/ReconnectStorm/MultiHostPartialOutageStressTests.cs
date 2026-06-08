@@ -42,7 +42,7 @@ public sealed class MultiHostPartialOutageStressTests
             MaxPoolSize = 2,
             AcquireTimeout = TimeSpan.FromSeconds(2),
             ConnectTimeout = TimeSpan.FromSeconds(2),
-            SendTimeout = TimeSpan.FromSeconds(5),
+            SmtpSendTimeout = TimeSpan.FromSeconds(5),
             ReconnectCooldown = TimeSpan.FromSeconds(2),
             RetryBaseDelay = TimeSpan.FromMilliseconds(250),
             MaxRetryAttempts = 1,
