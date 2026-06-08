@@ -15,7 +15,7 @@ It exists to stop application teams from implementing unsafe SMTP client lifecyc
 
 This repository intentionally focuses on SMTP connection control. It does not provide template rendering, notification orchestration, durable queuing, or bulk-marketing features.
 
-![PooledMailKit overview](docs/assets/Mailkit.PoolOverview.png)
+![PooledMailKit overview](https://raw.githubusercontent.com/synthaicode/MailKit.Pooling/main/docs/assets/Mailkit.PoolOverview.png)
 
 ## Current repository status
 
