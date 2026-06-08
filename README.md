@@ -54,6 +54,7 @@ The current MVP provides guarded SMTP pooling with:
 - MailKit-based connect, authenticate, send, and keepalive execution
 - single-host and multi-host endpoint configuration with priority and weight
 - `MinPoolSize`, `MaxPoolSize`, and `AcquireTimeout`
+- delayed refill of `MinPoolSize` after discarded connections
 - one-send-per-connection exclusivity
 - failed-connection disposal
 - reconnect cooldown, including host-level cooldown for multi-host selection
@@ -84,6 +85,7 @@ For intended usage scenarios, see `docs/design/use-cases.md`.
 For guidance on selecting option values, see `docs/design/option-tuning.md`.
 For a synchronous send example with a strict request-path SLA, see `docs/design/synchronous-send-sla-sample.md`.
 For intended telemetry design, see `docs/operation/metrics-and-logging.md`.
+For Datadog-specific metric collection setup, see `docs/operation/datadog-metrics.md`.
 For NuGet release preparation, see `docs/release/nuget-publish-checklist.md`.
 For release-facing notes, see `docs/release/0.1.0.md` and `CHANGELOG.md`.
 
@@ -131,6 +133,7 @@ services.AddMailKitPooling(options =>
     });
 
     options.MinPoolSize = 0;
+    options.MinPoolRefillDelay = TimeSpan.Zero;
     options.MaxPoolSize = 8;
     options.AcquireTimeout = TimeSpan.FromSeconds(15);
     options.IdleTimeout = TimeSpan.FromMinutes(2);
@@ -184,10 +187,11 @@ Choose values in this order:
 
 1. set expected concurrent send volume
 2. size `MaxPoolSize` and `MinPoolSize`
-3. set `AcquireTimeout` from caller-facing wait tolerance
-4. set `ConnectTimeout`, `AuthenticateTimeout`, and `SmtpSendTimeout` from real SMTP latency
-5. set `ReconnectCooldown`, `MaxRetryAttempts`, and `RetryBaseDelay` from outage and retry tolerance
-6. set host `Priority` and `Weight` from failover and load-sharing intent
+3. decide whether discarded connections should be refilled immediately or after `MinPoolRefillDelay`
+4. set `AcquireTimeout` from caller-facing wait tolerance
+5. set `ConnectTimeout`, `AuthenticateTimeout`, and `SmtpSendTimeout` from real SMTP latency
+6. set `ReconnectCooldown`, `MaxRetryAttempts`, and `RetryBaseDelay` from outage and retry tolerance
+7. set host `Priority` and `Weight` from failover and load-sharing intent
 
 Practical defaults for many transactional systems are:
 
@@ -195,6 +199,7 @@ Practical defaults for many transactional systems are:
 - `MaxPoolSize = 4` to `16`
 - `AcquireTimeout = 2` to `15` seconds for API paths
 - `IdleTimeout = 1` to `5` minutes
+- `MinPoolRefillDelay = 0` unless close-driven churn needs smoothing
 - `KeepAliveInterval = 30` to `120` seconds when idle drops are suspected
 - `ReconnectCooldown = 5` to `30` seconds
 - `MaxRetryAttempts = 0` or `1`
