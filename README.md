@@ -77,7 +77,7 @@ The initial package does not aim to provide:
 
 - `PooledMailKit`
 
-The DI registration API remains available under the namespace `MailKit.Pooling.DependencyInjection`, but it is shipped inside the single `PooledMailKit` NuGet package rather than as a second package.
+The DI registration API remains available under the namespace `PooledMailKit.DependencyInjection`, but it is shipped inside the single `PooledMailKit` NuGet package rather than as a second package.
 
 See the design documents under `docs/` for the current boundary, API direction, and open decisions.
 
@@ -100,9 +100,9 @@ The current telemetry contract includes:
 Register the pool once in DI, then send through `ISmtpSender`.
 
 ```csharp
-using MailKit.Pooling.Abstractions;
-using MailKit.Pooling.DependencyInjection;
-using MailKit.Pooling.Options;
+using PooledMailKit.Abstractions;
+using PooledMailKit.DependencyInjection;
+using PooledMailKit.Options;
 using Microsoft.Extensions.DependencyInjection;
 using MimeKit;
 

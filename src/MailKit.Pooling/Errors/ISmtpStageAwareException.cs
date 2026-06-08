@@ -1,4 +1,4 @@
-namespace MailKit.Pooling.Errors;
+namespace PooledMailKit.Errors;
 
 internal interface ISmtpStageAwareException
 {

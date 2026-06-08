@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 
-namespace MailKit.Pooling.StressTests.Helpers;
+namespace PooledMailKit.StressTests.Helpers;
 
 internal interface ITimeWaitObserver
 {

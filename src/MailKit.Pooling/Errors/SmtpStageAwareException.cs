@@ -1,4 +1,4 @@
-namespace MailKit.Pooling.Errors;
+namespace PooledMailKit.Errors;
 
 internal sealed class SmtpStageAwareException : Exception, ISmtpStageAwareException
 {

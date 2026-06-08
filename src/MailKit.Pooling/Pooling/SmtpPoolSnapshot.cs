@@ -1,4 +1,4 @@
-namespace MailKit.Pooling.Pooling;
+namespace PooledMailKit.Pooling;
 
 internal sealed record SmtpPoolSnapshot(
     int TotalConnections,

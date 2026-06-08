@@ -1,6 +1,6 @@
-using MailKit.Pooling.Internal;
+using PooledMailKit.Internal;
 
-namespace MailKit.Pooling.Tests.Internal;
+namespace PooledMailKit.Tests.Internal;
 
 public sealed class TimeoutExecutionTests
 {

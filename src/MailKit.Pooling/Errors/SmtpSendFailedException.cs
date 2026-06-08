@@ -1,4 +1,4 @@
-namespace MailKit.Pooling.Errors;
+namespace PooledMailKit.Errors;
 
 /// <summary>
 /// Represents an SMTP send failure after MailKit.Pooling classification.

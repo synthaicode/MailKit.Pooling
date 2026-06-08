@@ -1,8 +1,8 @@
-using MailKit.Pooling.Abstractions;
-using MailKit.Pooling.Internal;
-using MailKit.Pooling.Options;
+using PooledMailKit.Abstractions;
+using PooledMailKit.Internal;
+using PooledMailKit.Options;
 
-namespace MailKit.Pooling.MailKit;
+namespace PooledMailKit.MailKit;
 
 internal sealed class MailKitSmtpConnectionFactory : ISmtpConnectionFactory
 {

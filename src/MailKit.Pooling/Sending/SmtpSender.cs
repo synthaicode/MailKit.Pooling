@@ -1,13 +1,13 @@
-using MailKit.Pooling.Abstractions;
-using MailKit.Pooling.Errors;
-using MailKit.Pooling.Internal;
-using MailKit.Pooling.Metrics;
-using MailKit.Pooling.Options;
-using MailKit.Pooling.Pooling;
-using MailKit.Pooling.Retry;
+using PooledMailKit.Abstractions;
+using PooledMailKit.Errors;
+using PooledMailKit.Internal;
+using PooledMailKit.Metrics;
+using PooledMailKit.Options;
+using PooledMailKit.Pooling;
+using PooledMailKit.Retry;
 using MimeKit;
 
-namespace MailKit.Pooling.Sending;
+namespace PooledMailKit.Sending;
 
 internal sealed class SmtpSender : ISmtpSender
 {

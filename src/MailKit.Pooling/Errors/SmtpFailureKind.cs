@@ -1,4 +1,4 @@
-namespace MailKit.Pooling.Errors;
+namespace PooledMailKit.Errors;
 
 /// <summary>
 /// Classifies send failures by retry and ambiguity behavior.

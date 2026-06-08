@@ -1,4 +1,4 @@
-namespace MailKit.Pooling.Abstractions;
+namespace PooledMailKit.Abstractions;
 
 internal sealed class SystemClock : IClock
 {

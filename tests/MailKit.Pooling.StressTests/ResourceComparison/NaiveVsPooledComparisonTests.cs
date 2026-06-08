@@ -1,15 +1,15 @@
 using System.Diagnostics;
 using MailKit.Net.Smtp;
-using MailKit.Pooling.Errors;
-using MailKit.Pooling.MailKit;
-using MailKit.Pooling.Metrics;
-using MailKit.Pooling.Options;
-using MailKit.Pooling.Pooling;
-using MailKit.Pooling.Sending;
+using PooledMailKit.Errors;
+using PooledMailKit.MailKit;
+using PooledMailKit.Metrics;
+using PooledMailKit.Options;
+using PooledMailKit.Pooling;
+using PooledMailKit.Sending;
 using MailKit.Security;
-using MailKit.Pooling.StressTests.Helpers;
+using PooledMailKit.StressTests.Helpers;
 
-namespace MailKit.Pooling.StressTests.ResourceComparison;
+namespace PooledMailKit.StressTests.ResourceComparison;
 
 public sealed class NaiveVsPooledComparisonTests
 {

@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
-using MailKit.Pooling.Abstractions;
-using MailKit.Pooling.Metrics;
+using PooledMailKit.Abstractions;
+using PooledMailKit.Metrics;
 
-namespace MailKit.Pooling.StressTests.Helpers;
+namespace PooledMailKit.StressTests.Helpers;
 
 internal sealed class InMemorySmtpPoolMetrics : ISmtpPoolMetrics
 {

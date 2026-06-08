@@ -1,10 +1,10 @@
-using MailKit.Pooling.Abstractions;
-using MailKit.Pooling.Errors;
-using MailKit.Pooling.Metrics;
-using MailKit.Pooling.Options;
+using PooledMailKit.Abstractions;
+using PooledMailKit.Errors;
+using PooledMailKit.Metrics;
+using PooledMailKit.Options;
 using System.Threading;
 
-namespace MailKit.Pooling.Pooling;
+namespace PooledMailKit.Pooling;
 
 internal sealed class SmtpPool : IAsyncDisposable
 {

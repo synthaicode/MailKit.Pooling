@@ -53,9 +53,9 @@
         Register the pool once in DI, then send through <code>ISmtpSender</code>.
         The default path is sender-oriented. Application code should not <code>new SmtpClient()</code> for each request.
       </p>
-      <pre><code class="language-csharp">using MailKit.Pooling.Abstractions;
-using MailKit.Pooling.DependencyInjection;
-using MailKit.Pooling.Options;
+      <pre><code class="language-csharp">using PooledMailKit.Abstractions;
+using PooledMailKit.DependencyInjection;
+using PooledMailKit.Options;
 using Microsoft.Extensions.DependencyInjection;
 using MimeKit;
 

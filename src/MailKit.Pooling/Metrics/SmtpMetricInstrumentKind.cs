@@ -1,4 +1,4 @@
-namespace MailKit.Pooling.Metrics;
+namespace PooledMailKit.Metrics;
 
 internal enum SmtpMetricInstrumentKind
 {

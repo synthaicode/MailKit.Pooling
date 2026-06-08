@@ -1,6 +1,6 @@
-using MailKit.Pooling.Retry;
+using PooledMailKit.Retry;
 
-namespace MailKit.Pooling.Tests.Retry;
+namespace PooledMailKit.Tests.Retry;
 
 public sealed class RetryDelayCalculatorTests
 {

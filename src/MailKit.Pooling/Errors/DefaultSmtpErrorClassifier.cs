@@ -2,9 +2,9 @@ using System.Net.Sockets;
 using System.Security.Authentication;
 using MailKit;
 using MailKit.Net.Smtp;
-using MailKit.Pooling.Abstractions;
+using PooledMailKit.Abstractions;
 
-namespace MailKit.Pooling.Errors;
+namespace PooledMailKit.Errors;
 
 internal sealed class DefaultSmtpErrorClassifier : ISmtpErrorClassifier
 {

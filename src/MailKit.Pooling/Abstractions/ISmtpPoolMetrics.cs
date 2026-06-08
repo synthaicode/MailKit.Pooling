@@ -1,6 +1,6 @@
-using MailKit.Pooling.Metrics;
+using PooledMailKit.Metrics;
 
-namespace MailKit.Pooling.Abstractions;
+namespace PooledMailKit.Abstractions;
 
 internal interface ISmtpPoolMetrics
 {

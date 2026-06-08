@@ -1,6 +1,6 @@
 using Xunit;
 
-namespace MailKit.Pooling.StressTests.Helpers;
+namespace PooledMailKit.StressTests.Helpers;
 
 [AttributeUsage(AttributeTargets.Method)]
 internal sealed class ManualStressFactAttribute : FactAttribute

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <AssemblyName>MailKit.Pooling.DependencyInjection</AssemblyName>
-    <RootNamespace>MailKit.Pooling.DependencyInjection</RootNamespace>
+    <RootNamespace>PooledMailKit.DependencyInjection</RootNamespace>
     <Description>Dependency injection integration for MailKit.Pooling.</Description>
     <PackageId>MailKit.Pooling.DependencyInjection</PackageId>
     <IsPackable>false</IsPackable>

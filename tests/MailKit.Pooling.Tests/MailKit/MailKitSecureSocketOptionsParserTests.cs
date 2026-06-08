@@ -1,7 +1,7 @@
-using MailKit.Pooling.MailKit;
+using PooledMailKit.MailKit;
 using MailKit.Security;
 
-namespace MailKit.Pooling.Tests.MailKit;
+namespace PooledMailKit.Tests.MailKit;
 
 public sealed class MailKitSecureSocketOptionsParserTests
 {

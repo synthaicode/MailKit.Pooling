@@ -1,8 +1,8 @@
 using System.Security.Authentication;
 using MailKit.Net.Smtp;
-using MailKit.Pooling.Errors;
+using PooledMailKit.Errors;
 
-namespace MailKit.Pooling.ComponentTests.ErrorClassification;
+namespace PooledMailKit.ComponentTests.ErrorClassification;
 
 public sealed class MailKitExceptionClassificationTests
 {

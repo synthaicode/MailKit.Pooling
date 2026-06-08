@@ -1,13 +1,13 @@
-using MailKit.Pooling.Abstractions;
-using MailKit.Pooling.Errors;
-using MailKit.Pooling.MailKit;
-using MailKit.Pooling.Metrics;
-using MailKit.Pooling.Options;
-using MailKit.Pooling.Pooling;
-using MailKit.Pooling.Sending;
+using PooledMailKit.Abstractions;
+using PooledMailKit.Errors;
+using PooledMailKit.MailKit;
+using PooledMailKit.Metrics;
+using PooledMailKit.Options;
+using PooledMailKit.Pooling;
+using PooledMailKit.Sending;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace MailKit.Pooling.DependencyInjection;
+namespace PooledMailKit.DependencyInjection;
 
 /// <summary>
 /// Registers MailKit.Pooling services into dependency injection.

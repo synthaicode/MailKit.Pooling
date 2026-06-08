@@ -1,4 +1,4 @@
-namespace MailKit.Pooling.Options;
+namespace PooledMailKit.Options;
 
 /// <summary>
 /// Configures a single SMTP endpoint candidate for the pool.

@@ -1,6 +1,6 @@
 using MailKit.Net.Smtp;
 
-namespace MailKit.Pooling.MailKit;
+namespace PooledMailKit.MailKit;
 
 internal sealed class DefaultMailKitSmtpClientFactory : IMailKitSmtpClientFactory
 {

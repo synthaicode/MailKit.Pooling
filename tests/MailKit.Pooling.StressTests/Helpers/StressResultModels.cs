@@ -1,4 +1,4 @@
-namespace MailKit.Pooling.StressTests.Helpers;
+namespace PooledMailKit.StressTests.Helpers;
 
 internal sealed record TimeWaitDeltaResult(
     bool IsAvailable,

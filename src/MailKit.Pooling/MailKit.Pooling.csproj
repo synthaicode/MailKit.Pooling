@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <AssemblyName>MailKit.Pooling</AssemblyName>
-    <RootNamespace>MailKit.Pooling</RootNamespace>
+    <RootNamespace>PooledMailKit</RootNamespace>
     <Authors>SynthAICode</Authors>
     <Company>SynthAICode</Company>
     <Description>MailKit-based SMTP connection pooling for .NET with bounded acquisition, connection reuse, retry classification, reconnect cooldown, multi-host failover, and operational validation for safer high-volume email sending.</Description>

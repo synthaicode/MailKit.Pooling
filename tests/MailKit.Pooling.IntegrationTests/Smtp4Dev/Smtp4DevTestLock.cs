@@ -1,6 +1,6 @@
 using System.IO;
 
-namespace MailKit.Pooling.IntegrationTests.Smtp4Dev;
+namespace PooledMailKit.IntegrationTests.Smtp4Dev;
 
 internal sealed class Smtp4DevTestLock : IAsyncDisposable
 {

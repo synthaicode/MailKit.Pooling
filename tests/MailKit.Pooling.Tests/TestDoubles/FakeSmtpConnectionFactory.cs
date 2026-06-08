@@ -1,7 +1,7 @@
-using MailKit.Pooling.Abstractions;
-using MailKit.Pooling.Options;
+using PooledMailKit.Abstractions;
+using PooledMailKit.Options;
 
-namespace MailKit.Pooling.Tests.TestDoubles;
+namespace PooledMailKit.Tests.TestDoubles;
 
 internal sealed class FakeSmtpConnectionFactory : ISmtpConnectionFactory
 {

@@ -1,10 +1,10 @@
-using MailKit.Pooling.Errors;
-using MailKit.Pooling.Metrics;
-using MailKit.Pooling.Options;
-using MailKit.Pooling.Pooling;
-using MailKit.Pooling.Tests.TestDoubles;
+using PooledMailKit.Errors;
+using PooledMailKit.Metrics;
+using PooledMailKit.Options;
+using PooledMailKit.Pooling;
+using PooledMailKit.Tests.TestDoubles;
 
-namespace MailKit.Pooling.Tests.Pool;
+namespace PooledMailKit.Tests.Pool;
 
 public sealed class PoolStateTransitionTests
 {

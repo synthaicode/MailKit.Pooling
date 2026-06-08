@@ -1,11 +1,11 @@
-using MailKit.Pooling.Abstractions;
-using MailKit.Pooling.DependencyInjection;
-using MailKit.Pooling.Metrics;
-using MailKit.Pooling.Options;
-using MailKit.Pooling.Pooling;
+using PooledMailKit.Abstractions;
+using PooledMailKit.DependencyInjection;
+using PooledMailKit.Metrics;
+using PooledMailKit.Options;
+using PooledMailKit.Pooling;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace MailKit.Pooling.Tests.DependencyInjection;
+namespace PooledMailKit.Tests.DependencyInjection;
 
 public sealed class ServiceCollectionExtensionsTests
 {

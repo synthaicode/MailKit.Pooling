@@ -1,6 +1,6 @@
-using MailKit.Pooling.Abstractions;
+using PooledMailKit.Abstractions;
 
-namespace MailKit.Pooling.Pooling;
+namespace PooledMailKit.Pooling;
 
 internal sealed class SmtpConnectionLease : IAsyncDisposable
 {

@@ -1,6 +1,6 @@
-using MailKit.Pooling.Errors;
+using PooledMailKit.Errors;
 
-namespace MailKit.Pooling.Tests.ErrorClassification;
+namespace PooledMailKit.Tests.ErrorClassification;
 
 public sealed class DefaultSmtpErrorClassifierTests
 {

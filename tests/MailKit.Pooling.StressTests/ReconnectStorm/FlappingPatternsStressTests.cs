@@ -1,12 +1,12 @@
-using MailKit.Pooling.Errors;
-using MailKit.Pooling.MailKit;
-using MailKit.Pooling.Metrics;
-using MailKit.Pooling.Options;
-using MailKit.Pooling.Pooling;
-using MailKit.Pooling.Sending;
-using MailKit.Pooling.StressTests.Helpers;
+using PooledMailKit.Errors;
+using PooledMailKit.MailKit;
+using PooledMailKit.Metrics;
+using PooledMailKit.Options;
+using PooledMailKit.Pooling;
+using PooledMailKit.Sending;
+using PooledMailKit.StressTests.Helpers;
 
-namespace MailKit.Pooling.StressTests.ReconnectStorm;
+namespace PooledMailKit.StressTests.ReconnectStorm;
 
 public sealed class FlappingPatternsStressTests
 {

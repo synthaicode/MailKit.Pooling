@@ -1,6 +1,6 @@
-using MailKit.Pooling.Errors;
+using PooledMailKit.Errors;
 
-namespace MailKit.Pooling.Abstractions;
+namespace PooledMailKit.Abstractions;
 
 internal interface ISmtpErrorClassifier
 {

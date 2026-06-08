@@ -1,4 +1,4 @@
-namespace MailKit.Pooling.Retry;
+namespace PooledMailKit.Retry;
 
 internal static class RetryDelayCalculator
 {

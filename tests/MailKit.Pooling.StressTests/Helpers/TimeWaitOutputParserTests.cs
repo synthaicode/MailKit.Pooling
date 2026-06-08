@@ -1,4 +1,4 @@
-namespace MailKit.Pooling.StressTests.Helpers;
+namespace PooledMailKit.StressTests.Helpers;
 
 public sealed class TimeWaitOutputParserTests
 {

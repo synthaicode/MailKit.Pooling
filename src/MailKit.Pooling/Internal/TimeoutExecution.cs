@@ -1,4 +1,4 @@
-namespace MailKit.Pooling.Internal;
+namespace PooledMailKit.Internal;
 
 internal static class TimeoutExecution
 {

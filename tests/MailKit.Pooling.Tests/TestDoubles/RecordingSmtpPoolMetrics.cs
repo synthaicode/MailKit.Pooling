@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
-using MailKit.Pooling.Abstractions;
-using MailKit.Pooling.Metrics;
+using PooledMailKit.Abstractions;
+using PooledMailKit.Metrics;
 
-namespace MailKit.Pooling.Tests.TestDoubles;
+namespace PooledMailKit.Tests.TestDoubles;
 
 internal sealed class RecordingSmtpPoolMetrics : ISmtpPoolMetrics
 {

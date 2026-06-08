@@ -14,7 +14,7 @@ Current intended entry points:
 - `SmtpFailureClassification`
 - `SmtpFailureKind`
 - `SmtpSendStage`
-- `IServiceCollection` registration extensions in `MailKit.Pooling.DependencyInjection`
+- `IServiceCollection` registration extensions in `PooledMailKit.DependencyInjection`
 
 ## Internal abstractions
 

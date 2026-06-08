@@ -35,8 +35,8 @@ For the full metric contract, see `metrics-and-logging.md`.
 Metrics are enabled by default, but the setting can be made explicit:
 
 ```csharp
-using MailKit.Pooling.DependencyInjection;
-using MailKit.Pooling.Options;
+using PooledMailKit.DependencyInjection;
+using PooledMailKit.Options;
 
 builder.Services.AddMailKitPooling(options =>
 {

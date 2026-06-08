@@ -1,6 +1,6 @@
 using MailKit.Security;
 
-namespace MailKit.Pooling.MailKit;
+namespace PooledMailKit.MailKit;
 
 internal static class MailKitSecureSocketOptionsParser
 {

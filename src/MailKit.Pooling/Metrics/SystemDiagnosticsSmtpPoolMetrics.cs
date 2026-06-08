@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Globalization;
-using MailKit.Pooling.Abstractions;
+using PooledMailKit.Abstractions;
 
-namespace MailKit.Pooling.Metrics;
+namespace PooledMailKit.Metrics;
 
 internal sealed class SystemDiagnosticsSmtpPoolMetrics : ISmtpPoolMetrics, IDisposable
 {

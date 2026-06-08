@@ -1,8 +1,8 @@
 using MailKit.Net.Smtp;
-using MailKit.Pooling.Abstractions;
+using PooledMailKit.Abstractions;
 using MimeKit;
 
-namespace MailKit.Pooling.MailKit;
+namespace PooledMailKit.MailKit;
 
 internal sealed class MailKitSmtpClientAdapter : ISmtpClientAdapter
 {

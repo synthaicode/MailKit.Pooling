@@ -1,4 +1,4 @@
-namespace MailKit.Pooling.Options;
+namespace PooledMailKit.Options;
 
 /// <summary>
 /// Configures the SMTP pool, retry, timeout, and host-selection behavior.

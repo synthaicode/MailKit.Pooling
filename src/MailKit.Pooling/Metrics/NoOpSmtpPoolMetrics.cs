@@ -1,6 +1,6 @@
-using MailKit.Pooling.Abstractions;
+using PooledMailKit.Abstractions;
 
-namespace MailKit.Pooling.Metrics;
+namespace PooledMailKit.Metrics;
 
 internal sealed class NoOpSmtpPoolMetrics : ISmtpPoolMetrics
 {

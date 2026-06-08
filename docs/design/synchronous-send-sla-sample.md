@@ -32,8 +32,8 @@ Configure `SmtpSendTimeout` to `2` seconds. In a strict synchronous API path,
 keep retry budget very small so retries do not silently consume the whole SLA.
 
 ```csharp
-using MailKit.Pooling.DependencyInjection;
-using MailKit.Pooling.Options;
+using PooledMailKit.DependencyInjection;
+using PooledMailKit.Options;
 
 builder.Services.AddMailKitPooling(options =>
 {
@@ -67,8 +67,8 @@ The difference is that the pool may fail over to another host inside that same
 request if the first host is unavailable.
 
 ```csharp
-using MailKit.Pooling.DependencyInjection;
-using MailKit.Pooling.Options;
+using PooledMailKit.DependencyInjection;
+using PooledMailKit.Options;
 
 builder.Services.AddMailKitPooling(options =>
 {
@@ -140,8 +140,8 @@ The service builds a `MimeMessage`, sends it synchronously, and maps SMTP
 outcomes into a narrow application result.
 
 ```csharp
-using MailKit.Pooling.Abstractions;
-using MailKit.Pooling.Errors;
+using PooledMailKit.Abstractions;
+using PooledMailKit.Errors;
 using MimeKit;
 
 public sealed class PasswordResetMailService

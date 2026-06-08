@@ -1,6 +1,6 @@
 using MimeKit;
 
-namespace MailKit.Pooling.Abstractions;
+namespace PooledMailKit.Abstractions;
 
 /// <summary>
 /// Sends SMTP messages through the pooled MailKit transport path.

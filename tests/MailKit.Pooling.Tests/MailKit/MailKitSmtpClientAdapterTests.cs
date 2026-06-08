@@ -1,7 +1,7 @@
 using MailKit.Net.Smtp;
-using MailKit.Pooling.MailKit;
+using PooledMailKit.MailKit;
 
-namespace MailKit.Pooling.Tests.MailKit;
+namespace PooledMailKit.Tests.MailKit;
 
 public sealed class MailKitSmtpClientAdapterTests
 {

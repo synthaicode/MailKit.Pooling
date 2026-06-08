@@ -1,12 +1,12 @@
-using MailKit.Pooling.Errors;
-using MailKit.Pooling.Metrics;
-using MailKit.Pooling.Options;
-using MailKit.Pooling.Pooling;
-using MailKit.Pooling.Sending;
-using MailKit.Pooling.Tests.TestDoubles;
+using PooledMailKit.Errors;
+using PooledMailKit.Metrics;
+using PooledMailKit.Options;
+using PooledMailKit.Pooling;
+using PooledMailKit.Sending;
+using PooledMailKit.Tests.TestDoubles;
 using MimeKit;
 
-namespace MailKit.Pooling.Tests.Sending;
+namespace PooledMailKit.Tests.Sending;
 
 public sealed class SmtpSenderTests
 {

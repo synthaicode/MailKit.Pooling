@@ -4,7 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using MimeKit;
 
-namespace MailKit.Pooling.StressTests.Helpers;
+namespace PooledMailKit.StressTests.Helpers;
 
 internal sealed class Smtp4DevStressHarness : IAsyncDisposable
 {

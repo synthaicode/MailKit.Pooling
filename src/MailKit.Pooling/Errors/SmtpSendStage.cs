@@ -1,4 +1,4 @@
-namespace MailKit.Pooling.Errors;
+namespace PooledMailKit.Errors;
 
 /// <summary>
 /// Describes the SMTP stage reached by a send operation.

@@ -1,4 +1,4 @@
-namespace MailKit.Pooling.Sending;
+namespace PooledMailKit.Sending;
 
 /// <summary>
 /// Represents a successful SMTP send result.

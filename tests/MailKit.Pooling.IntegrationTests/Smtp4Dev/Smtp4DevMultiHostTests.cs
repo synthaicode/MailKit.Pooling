@@ -1,14 +1,14 @@
 using System.Diagnostics;
 using System.Net.Http.Json;
-using MailKit.Pooling.Errors;
-using MailKit.Pooling.MailKit;
-using MailKit.Pooling.Options;
-using MailKit.Pooling.Pooling;
-using MailKit.Pooling.Sending;
+using PooledMailKit.Errors;
+using PooledMailKit.MailKit;
+using PooledMailKit.Options;
+using PooledMailKit.Pooling;
+using PooledMailKit.Sending;
 using MimeKit;
 using Xunit.Sdk;
 
-namespace MailKit.Pooling.IntegrationTests.Smtp4Dev;
+namespace PooledMailKit.IntegrationTests.Smtp4Dev;
 
 public sealed class Smtp4DevMultiHostTests
 {

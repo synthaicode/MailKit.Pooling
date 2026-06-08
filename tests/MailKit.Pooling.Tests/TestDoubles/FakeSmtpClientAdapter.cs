@@ -1,6 +1,6 @@
-using MailKit.Pooling.Abstractions;
+using PooledMailKit.Abstractions;
 
-namespace MailKit.Pooling.Tests.TestDoubles;
+namespace PooledMailKit.Tests.TestDoubles;
 
 internal sealed class FakeSmtpClientAdapter : ISmtpClientAdapter
 {

@@ -1,4 +1,4 @@
-namespace MailKit.Pooling.ComponentTests.StageAwareSend;
+namespace PooledMailKit.ComponentTests.StageAwareSend;
 
 public sealed class StageAwareClassificationTests
 {
