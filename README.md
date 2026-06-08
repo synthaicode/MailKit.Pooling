@@ -137,7 +137,7 @@ services.AddMailKitPooling(options =>
     options.KeepAliveInterval = TimeSpan.FromMinutes(1);
     options.ConnectTimeout = TimeSpan.FromSeconds(15);
     options.AuthenticateTimeout = TimeSpan.FromSeconds(15);
-    options.SendTimeout = TimeSpan.FromSeconds(30);
+    options.SmtpSendTimeout = TimeSpan.FromSeconds(30);
     options.ReconnectCooldown = TimeSpan.FromSeconds(30);
     options.MaxRetryAttempts = 1;
     options.RetryBaseDelay = TimeSpan.FromSeconds(2);
@@ -185,7 +185,7 @@ Choose values in this order:
 1. set expected concurrent send volume
 2. size `MaxPoolSize` and `MinPoolSize`
 3. set `AcquireTimeout` from caller-facing wait tolerance
-4. set `ConnectTimeout`, `AuthenticateTimeout`, and `SendTimeout` from real SMTP latency
+4. set `ConnectTimeout`, `AuthenticateTimeout`, and `SmtpSendTimeout` from real SMTP latency
 5. set `ReconnectCooldown`, `MaxRetryAttempts`, and `RetryBaseDelay` from outage and retry tolerance
 6. set host `Priority` and `Weight` from failover and load-sharing intent
 
@@ -215,6 +215,24 @@ On failure, the main exception surface is:
 - `OperationCanceledException`
   - returned as-is when the caller's `CancellationToken` is canceled
   - caller cancellation is not wrapped into `SmtpSendFailedException`
+
+## Timeout Boundary
+
+- `SmtpSendTimeout`
+  - is a cooperative timeout applied to one SMTP send operation
+  - it does not guarantee that the full `ISmtpSender.SendAsync()` call returns within that duration
+
+- `AbsoluteTimeout`
+  - if enabled by a caller-side or future library-side absolute deadline pattern, the caller can receive a timeout at the configured deadline
+  - it still does not guarantee physical termination of the underlying SMTP operation
+
+- connection invalidation after absolute timeout
+  - a connection that crosses an absolute deadline should be treated as state-unknown and invalidated
+  - this may increase `TIME_WAIT` because the underlying TCP connection may need to be discarded
+
+- `UnknownAfterData`
+  - timeout or disconnect after the SMTP `DATA` ambiguity boundary is treated as `UnknownAfterData`
+  - the library reduces blind retries, but it cannot fully guarantee prevention of duplicate delivery in that state
 
 Typical handling looks like:
 
