@@ -58,6 +58,82 @@ builder.Services.AddMailKitPooling(options =>
 });
 ```
 
+## Multi-Host Variant
+
+If the application uses more than one SMTP host, the synchronous pattern is
+still the same: the request thread waits for `ISmtpSender.SendAsync()`.
+
+The difference is that the pool may fail over to another host inside that same
+request if the first host is unavailable.
+
+```csharp
+using MailKit.Pooling.DependencyInjection;
+using MailKit.Pooling.Options;
+
+builder.Services.AddMailKitPooling(options =>
+{
+    options.Hosts.Add(new SmtpHostOptions
+    {
+        Host = "smtp-primary.example.com",
+        Port = 587,
+        SecureSocketOptions = "StartTls",
+        UserName = "smtp-user",
+        Password = "smtp-password",
+        Priority = 0,
+        Weight = 3,
+    });
+
+    options.Hosts.Add(new SmtpHostOptions
+    {
+        Host = "smtp-secondary.example.com",
+        Port = 587,
+        SecureSocketOptions = "StartTls",
+        UserName = "smtp-user",
+        Password = "smtp-password",
+        Priority = 10,
+        Weight = 1,
+    });
+
+    options.ConnectTimeout = TimeSpan.FromMilliseconds(500);
+    options.AuthenticateTimeout = TimeSpan.FromMilliseconds(500);
+    options.SendTimeout = TimeSpan.FromSeconds(2);
+
+    options.AcquireTimeout = TimeSpan.FromMilliseconds(250);
+    options.MaxRetryAttempts = 0;
+    options.ReconnectCooldown = TimeSpan.FromSeconds(10);
+});
+```
+
+Important behavior:
+
+- lower `Priority` values are preferred first
+- `Weight` applies only inside the same `Priority` group
+- if the first host is in cooldown or cannot be used, the pool may move to the
+  next host candidate
+- the request is still synchronous; failover does not create a background send
+
+### SLA Budget Warning
+
+With multiple hosts, the `2` second SLA is still a single end-to-end budget.
+
+That means:
+
+- slow timeout values on the primary host can consume most of the SLA before
+  the secondary host is even tried
+- synchronous failover works best when connect/authenticate budgets are short
+- in strict request-path SLAs, `MaxRetryAttempts = 0` is usually safer
+
+Practical guidance:
+
+- if the requirement is "try the primary host only within 2 seconds", use
+  longer primary timeouts and no effective failover budget
+- if the requirement is "try the secondary host too within 2 seconds", keep
+  primary connect/authenticate timeout values very short
+
+The `Service Example` and `Controller Example` below do not need to change.
+The sender still returns a normal success result if failover succeeded on the
+secondary host.
+
 ## Service Example
 
 The service builds a `MimeMessage`, sends it synchronously, and maps SMTP
