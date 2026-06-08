@@ -4,4 +4,4 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("MailKit.Pooling.ComponentTests")]
 [assembly: InternalsVisibleTo("MailKit.Pooling.IntegrationTests")]
 [assembly: InternalsVisibleTo("MailKit.Pooling.StressTests")]
-[assembly: InternalsVisibleTo("MailKit.Pooling.DependencyInjection")]
+[assembly: InternalsVisibleTo("PooledMailKit.DependencyInjection")]

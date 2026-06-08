@@ -1,6 +1,6 @@
-# MailKit.Pooling
+# PooledMailKit
 
-`MailKit.Pooling` is a .NET OSS library for guarded SMTP connection reuse on top of [MailKit](https://github.com/jstedfast/MailKit).
+`PooledMailKit` is a .NET OSS library for guarded SMTP connection reuse on top of [MailKit](https://github.com/jstedfast/MailKit).
 
 Project site: [https://synthaicode.org/MailKit.Pooling/](https://synthaicode.org/MailKit.Pooling/)
 
@@ -15,7 +15,7 @@ It exists to stop application teams from implementing unsafe SMTP client lifecyc
 
 This repository intentionally focuses on SMTP connection control. It does not provide template rendering, notification orchestration, durable queuing, or bulk-marketing features.
 
-![MailKit.Pooling overview](docs/assets/Mailkit.PoolOverview.png)
+![PooledMailKit overview](docs/assets/Mailkit.PoolOverview.png)
 
 ## Current repository status
 
@@ -153,7 +153,7 @@ var message = new MimeMessage();
 message.From.Add(MailboxAddress.Parse("from@example.com"));
 message.To.Add(MailboxAddress.Parse("to@example.com"));
 message.Subject = "Hello";
-message.Body = new TextPart("plain") { Text = "Hello from MailKit.Pooling" };
+message.Body = new TextPart("plain") { Text = "Hello from PooledMailKit" };
 
 var result = await sender.SendAsync(message);
 Console.WriteLine($"Sent via {result.EndpointKey} in {result.Attempts} attempt(s).");
@@ -163,7 +163,7 @@ If you only have one SMTP endpoint, configuring `options.Host` still works as a 
 
 ## Intended Use Cases
 
-`MailKit.Pooling` is intended for SMTP-based application code that needs safer connection lifecycle control, not for full notification orchestration.
+`PooledMailKit` is intended for SMTP-based application code that needs safer connection lifecycle control, not for full notification orchestration.
 
 - web APIs that send transactional email during request handling
 - background workers or outbox executors that send steady SMTP traffic
