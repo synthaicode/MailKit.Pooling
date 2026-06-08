@@ -2,7 +2,7 @@
 
 ## Confirmed by current direction
 
-- Package name: `MailKit.Pooling`
+- Package name: `PooledMailKit`
 - Primary transport boundary: SMTP via MailKit
 - Initial scope: connection control library, not notification/template infrastructure
 

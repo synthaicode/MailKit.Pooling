@@ -88,6 +88,36 @@ Decrease it when:
 - idle connections remain open with little traffic
 - SMTP servers or relays dislike long-lived unused sessions
 
+### `MinPoolRefillDelay`
+
+What it controls:
+
+- how long the pool waits before refilling `MinPoolSize` after a discarded
+  connection drops live capacity below the minimum
+
+How to choose it:
+
+- keep it at `0` when immediate warm-pool recovery matters more than TCP churn
+- use a positive value when discarded connections are frequent and immediate
+  refill would create avoidable close/create churn
+- think of it as delayed refill, not as TIME_WAIT detection or socket recovery
+
+Safe starting rule:
+
+- default: `0`
+- close-churn smoothing: `5` to `30` seconds
+
+Increase it when:
+
+- forced invalidation or timeout-driven discard happens in bursts
+- the system needs to avoid immediately rebuilding warm idle capacity after
+  many close events
+
+Decrease it when:
+
+- the pool stays below `MinPoolSize` longer than acceptable
+- first-send latency after discard becomes more important than smoothing churn
+
 ## Waiting And Backpressure
 
 ### `AcquireTimeout`
@@ -352,6 +382,7 @@ For a typical transactional application:
 
 ```csharp
 options.MinPoolSize = 0;
+options.MinPoolRefillDelay = TimeSpan.Zero;
 options.MaxPoolSize = 8;
 options.AcquireTimeout = TimeSpan.FromSeconds(10);
 options.IdleTimeout = TimeSpan.FromMinutes(2);

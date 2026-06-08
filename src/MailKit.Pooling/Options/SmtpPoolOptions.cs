@@ -21,6 +21,11 @@ public sealed class SmtpPoolOptions
     public int MinPoolSize { get; set; } = 0;
 
     /// <summary>
+    /// Gets or sets the delay before the pool refills <see cref="MinPoolSize"/> after a discarded connection.
+    /// </summary>
+    public TimeSpan MinPoolRefillDelay { get; set; } = TimeSpan.Zero;
+
+    /// <summary>
     /// Gets or sets the maximum number of live pooled connections.
     /// </summary>
     public int MaxPoolSize { get; set; } = 8;

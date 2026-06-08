@@ -78,6 +78,8 @@ MailKit.Pooling.Options.SmtpPoolOptions.MaxRetryAttempts.get -> int
 MailKit.Pooling.Options.SmtpPoolOptions.MaxRetryAttempts.set -> void
 MailKit.Pooling.Options.SmtpPoolOptions.MinPoolSize.get -> int
 MailKit.Pooling.Options.SmtpPoolOptions.MinPoolSize.set -> void
+MailKit.Pooling.Options.SmtpPoolOptions.MinPoolRefillDelay.get -> System.TimeSpan
+MailKit.Pooling.Options.SmtpPoolOptions.MinPoolRefillDelay.set -> void
 MailKit.Pooling.Options.SmtpPoolOptions.ReconnectCooldown.get -> System.TimeSpan
 MailKit.Pooling.Options.SmtpPoolOptions.ReconnectCooldown.set -> void
 MailKit.Pooling.Options.SmtpPoolOptions.RetryBaseDelay.get -> System.TimeSpan

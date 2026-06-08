@@ -104,6 +104,50 @@ public sealed class PoolStateTransitionTests
     }
 
     [Fact]
+    public async Task Invalidated_Connection_Refill_Can_Be_Delayed_Before_MinPoolSize_Is_Restored()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        var firstClient = new FakeSmtpClientAdapter();
+        var replacementClient = new FakeSmtpClientAdapter();
+        factory.Enqueue(firstClient);
+        factory.Enqueue(replacementClient);
+
+        await using var pool = new SmtpPool(
+            CreateOptions(
+                maxPoolSize: 2,
+                minPoolSize: 1,
+                reconnectCooldown: TimeSpan.Zero,
+                minPoolRefillDelay: TimeSpan.FromSeconds(10)),
+            factory,
+            clock);
+
+        await pool.WarmupAsync();
+        var lease = await pool.AcquireLeaseAsync();
+        await lease.InvalidateAsync();
+
+        var snapshotBeforeDelay = pool.GetSnapshot();
+        Assert.Equal(1, factory.CreateCalls);
+        Assert.Equal(0, snapshotBeforeDelay.TotalConnections);
+
+        await pool.WarmupAsync();
+        Assert.Equal(1, factory.CreateCalls);
+
+        clock.Advance(TimeSpan.FromSeconds(10));
+        await pool.WarmupAsync();
+
+        var snapshotAfterDelay = pool.GetSnapshot();
+        Assert.Equal(2, factory.CreateCalls);
+        Assert.Equal(1, snapshotAfterDelay.TotalConnections);
+        Assert.Equal(1, snapshotAfterDelay.IdleConnections);
+        Assert.Equal(1, firstClient.DisposeCalls);
+
+        var replacementLease = await pool.AcquireLeaseAsync();
+        Assert.Same(replacementClient, replacementLease.Client);
+        await replacementLease.ReturnAsync();
+    }
+
+    [Fact]
     public async Task AcquireTimeout_Throws_Explicit_PoolExhausted_Error()
     {
         var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
@@ -548,7 +592,8 @@ public sealed class PoolStateTransitionTests
         TimeSpan? acquireTimeout = null,
         TimeSpan? reconnectCooldown = null,
         TimeSpan? keepAliveInterval = null,
-        TimeSpan? idleTimeout = null)
+        TimeSpan? idleTimeout = null,
+        TimeSpan? minPoolRefillDelay = null)
     {
         return new SmtpPoolOptions
         {
@@ -562,6 +607,7 @@ public sealed class PoolStateTransitionTests
             ReconnectCooldown = reconnectCooldown ?? TimeSpan.FromSeconds(30),
             KeepAliveInterval = keepAliveInterval ?? TimeSpan.FromMinutes(1),
             IdleTimeout = idleTimeout ?? TimeSpan.FromMinutes(2),
+            MinPoolRefillDelay = minPoolRefillDelay ?? TimeSpan.Zero,
         };
     }
 

@@ -75,9 +75,9 @@ The initial package does not aim to provide:
 
 ## Planned package shape
 
-- `MailKit.Pooling`
+- `PooledMailKit`
 
-The DI registration API remains available under the namespace `MailKit.Pooling.DependencyInjection`, but it is shipped inside the single `MailKit.Pooling` NuGet package rather than as a second package.
+The DI registration API remains available under the namespace `MailKit.Pooling.DependencyInjection`, but it is shipped inside the single `PooledMailKit` NuGet package rather than as a second package.
 
 See the design documents under `docs/` for the current boundary, API direction, and open decisions.
 

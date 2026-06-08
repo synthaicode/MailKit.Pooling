@@ -19,6 +19,7 @@ internal sealed class SmtpPool : IAsyncDisposable
     private readonly Queue<Guid> idleConnectionIds = new();
     private readonly SemaphoreSlim connectionReturnedSignal = new(0);
     private bool disposed;
+    private DateTimeOffset? nextMinPoolRefillAllowedAt;
     private int pendingConnectionCreations;
     private int waitingCallers;
 
@@ -297,6 +298,10 @@ internal sealed class SmtpPool : IAsyncDisposable
             {
                 connections.Remove(connectionId);
                 ApplyCooldown(connection.HostState, clock.UtcNow + options.ReconnectCooldown);
+                if (!disposed && connections.Count + pendingConnectionCreations < options.MinPoolSize)
+                {
+                    ScheduleMinPoolRefill();
+                }
                 connectionToDispose = connection;
             }
             else
@@ -340,6 +345,11 @@ internal sealed class SmtpPool : IAsyncDisposable
             {
                 ThrowIfDisposed();
 
+                if (nextMinPoolRefillAllowedAt is { } nextAllowedAt && now < nextAllowedAt)
+                {
+                    return;
+                }
+
                 var targetConnectionCount = connections.Count + pendingConnectionCreations;
                 shouldCreateConnection = targetConnectionCount < options.MinPoolSize
                     && TrySelectHostForCreation(now, out selectedHost);
@@ -364,6 +374,7 @@ internal sealed class SmtpPool : IAsyncDisposable
                     pendingConnectionCreations--;
                     connections.Add(pooledConnection.Id, pooledConnection);
                     idleConnectionIds.Enqueue(pooledConnection.Id);
+                    nextMinPoolRefillAllowedAt = null;
                 }
 
                 metrics.Record(new SmtpPoolMetricEvent(
@@ -487,6 +498,10 @@ internal sealed class SmtpPool : IAsyncDisposable
                     expiredConnections ??= [];
                     expiredConnections.Add(connection);
                     connections.Remove(connectionId);
+                    if (connections.Count + pendingConnectionCreations < options.MinPoolSize)
+                    {
+                        ScheduleMinPoolRefill();
+                    }
                     continue;
                 }
 
@@ -518,10 +533,11 @@ internal sealed class SmtpPool : IAsyncDisposable
             return TimeSpan.Zero;
         }
 
-        var cooldownUntil = GetNextCreationAllowedAt();
-        var cooldownWait = cooldownUntil is { } nextAllowedAt && nextAllowedAt > now
-            ? nextAllowedAt - now
-            : TimeSpan.FromMilliseconds(25);
+        var nextAllowedAt = GetNextCreationAllowedAt();
+        var waitUntil = nextAllowedAt is { } candidate && candidate > now
+            ? candidate
+            : now + TimeSpan.FromMilliseconds(25);
+        var cooldownWait = waitUntil - now;
 
         return cooldownWait < remaining ? cooldownWait : remaining;
     }
@@ -710,7 +726,7 @@ internal sealed class SmtpPool : IAsyncDisposable
 
     private DateTimeOffset? GetNextCreationAllowedAtUnsafe()
     {
-        DateTimeOffset? nextCreationAllowedAt = null;
+        DateTimeOffset? nextCreationAllowedAt = nextMinPoolRefillAllowedAt;
         foreach (var hostState in hostStates)
         {
             if (hostState.NextCreationAllowedAt is null)
@@ -725,6 +741,21 @@ internal sealed class SmtpPool : IAsyncDisposable
         }
 
         return nextCreationAllowedAt;
+    }
+
+    private void ScheduleMinPoolRefill()
+    {
+        if (options.MinPoolRefillDelay <= TimeSpan.Zero)
+        {
+            nextMinPoolRefillAllowedAt = null;
+            return;
+        }
+
+        var candidate = clock.UtcNow + options.MinPoolRefillDelay;
+        if (nextMinPoolRefillAllowedAt is null || candidate > nextMinPoolRefillAllowedAt)
+        {
+            nextMinPoolRefillAllowedAt = candidate;
+        }
     }
 
     private void ThrowIfDisposed()
