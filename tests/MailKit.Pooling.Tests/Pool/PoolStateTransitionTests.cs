@@ -732,8 +732,11 @@ public sealed class PoolStateTransitionTests
             MaxPoolSize = maxPoolSize,
             AcquireTimeout = TimeSpan.FromSeconds(15),
             ReconnectCooldown = reconnectCooldown ?? TimeSpan.FromSeconds(30),
+            MaxReconnectCooldown = TimeSpan.FromMinutes(5),
             KeepAliveInterval = TimeSpan.FromMinutes(1),
             IdleTimeout = TimeSpan.FromMinutes(2),
+            UseExponentialBackoff = true,
+            JitterRatio = 0d,
         };
     }
 }
