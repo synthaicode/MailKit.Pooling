@@ -142,11 +142,12 @@ services.AddMailKitPooling(options =>
     options.AuthenticateTimeout = TimeSpan.FromSeconds(15);
     options.SmtpSendTimeout = TimeSpan.FromSeconds(30);
     options.ReconnectCooldown = TimeSpan.FromSeconds(30);
+    options.MaxReconnectCooldown = TimeSpan.FromMinutes(5);
     options.MaxRetryAttempts = 1;
     options.RetryBaseDelay = TimeSpan.FromSeconds(2);
 });
 
-var provider = services.BuildServiceProvider();
+await using var provider = services.BuildServiceProvider();
 var sender = provider.GetRequiredService<ISmtpSender>();
 
 var message = new MimeMessage();
@@ -190,7 +191,7 @@ Choose values in this order:
 3. decide whether discarded connections should be refilled immediately or after `MinPoolRefillDelay`
 4. set `AcquireTimeout` from caller-facing wait tolerance
 5. set `ConnectTimeout`, `AuthenticateTimeout`, and `SmtpSendTimeout` from real SMTP latency
-6. set `ReconnectCooldown`, `MaxRetryAttempts`, and `RetryBaseDelay` from outage and retry tolerance
+6. set `ReconnectCooldown`, `MaxReconnectCooldown`, `MaxRetryAttempts`, and `RetryBaseDelay` from outage and retry tolerance
 7. set host `Priority` and `Weight` from failover and load-sharing intent
 
 Practical defaults for many transactional systems are:
@@ -201,8 +202,9 @@ Practical defaults for many transactional systems are:
 - `IdleTimeout = 1` to `5` minutes
 - `MinPoolRefillDelay = 0` unless close-driven churn needs smoothing
 - `KeepAliveInterval = 30` to `120` seconds when idle drops are suspected
-- `ReconnectCooldown = 5` to `30` seconds
-- `MaxRetryAttempts = 0` or `1`
+- `ReconnectCooldown = 5` to `30` seconds as the base reconnect cooldown
+- `MaxReconnectCooldown = 1` to `5` minutes when exponential cooldown is enabled
+- `MaxRetryAttempts = 0` or `1` for additional retries after the initial attempt
 
 See `docs/design/option-tuning.md` for per-option decision rules, increase/decrease signals, and multi-host tuning guidance.
 
@@ -255,6 +257,12 @@ catch (SmtpSendFailedException ex) when (ex.Classification.Kind == SmtpFailureKi
     // Delivery may already be ambiguous. Do not blindly resend.
 }
 ```
+
+## Operational Notes
+
+- `ReconnectCooldown` is the base cooldown after a failed reconnect. When `UseExponentialBackoff = true`, repeated failures grow that cooldown up to `MaxReconnectCooldown`, with `JitterRatio` applied to the cooldown as well.
+- `MaxRetryAttempts` counts retries after the initial send attempt. `MaxRetryAttempts = 1` means up to 2 total send attempts.
+- When you register the pool with DI, dispose the root `IServiceProvider` or host so the singleton `SmtpPool` can close its SMTP connections.
 
 ## Verification Notes
 

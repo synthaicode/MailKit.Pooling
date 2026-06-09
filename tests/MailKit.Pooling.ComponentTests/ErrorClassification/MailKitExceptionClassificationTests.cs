@@ -65,6 +65,21 @@ public sealed class MailKitExceptionClassificationTests
     }
 
     [Fact]
+    public void Smtp_4xx_After_Data_Is_UnknownAfterData()
+    {
+        var ex = new SmtpCommandException(
+            SmtpErrorCode.MessageNotAccepted,
+            SmtpStatusCode.ErrorInProcessing,
+            "temporary processing failure");
+
+        var result = classifier.Classify(ex, SmtpSendStage.DataStarted);
+
+        Assert.Equal(SmtpFailureKind.UnknownAfterData, result.Kind);
+        Assert.False(result.IsRetryAllowed);
+        Assert.True(result.ShouldDiscardConnection);
+    }
+
+    [Fact]
     public void Smtp_5xx_Is_Permanent()
     {
         var ex = new SmtpCommandException(

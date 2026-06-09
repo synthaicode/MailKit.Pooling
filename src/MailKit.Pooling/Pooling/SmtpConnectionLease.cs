@@ -40,7 +40,7 @@ internal sealed class SmtpConnectionLease : IAsyncDisposable
 
     public ValueTask DisposeAsync()
     {
-        return CompleteAsync(isReusable: true, CancellationToken.None);
+        return CompleteAsync(isReusable: false, CancellationToken.None);
     }
 
     private ValueTask CompleteAsync(bool isReusable, CancellationToken cancellationToken)

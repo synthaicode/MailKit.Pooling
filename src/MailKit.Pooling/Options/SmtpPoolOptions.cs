@@ -61,12 +61,12 @@ public sealed class SmtpPoolOptions
     public TimeSpan SmtpSendTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// Gets or sets the host cooldown after connection failures.
+    /// Gets or sets the base host cooldown after connection failures.
     /// </summary>
     public TimeSpan ReconnectCooldown { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// Gets or sets the upper bound for exponential reconnect cooldown.
+    /// Gets or sets the upper bound applied when reconnect cooldown backoff grows.
     /// </summary>
     public TimeSpan MaxReconnectCooldown { get; set; } = TimeSpan.FromMinutes(5);
 
@@ -81,7 +81,7 @@ public sealed class SmtpPoolOptions
     public double JitterRatio { get; set; } = 0.2d;
 
     /// <summary>
-    /// Gets or sets the maximum automatic retry attempts for retryable failures.
+    /// Gets or sets the maximum automatic retries after the initial send attempt for retryable failures.
     /// </summary>
     public int MaxRetryAttempts { get; set; } = 0;
 

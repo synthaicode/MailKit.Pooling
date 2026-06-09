@@ -13,7 +13,6 @@ PooledMailKit.Errors.SmtpFailureClassification.ShouldDiscardConnection.get -> bo
 PooledMailKit.Errors.SmtpFailureClassification.Stage.get -> PooledMailKit.Errors.SmtpSendStage
 PooledMailKit.Errors.SmtpFailureKind
 PooledMailKit.Errors.SmtpFailureKind.ConnectionCorrupted = 3 -> PooledMailKit.Errors.SmtpFailureKind
-PooledMailKit.Errors.SmtpFailureKind.HostUnavailable = 6 -> PooledMailKit.Errors.SmtpFailureKind
 PooledMailKit.Errors.SmtpFailureKind.PermanentFailure = 2 -> PooledMailKit.Errors.SmtpFailureKind
 PooledMailKit.Errors.SmtpFailureKind.PoolExhausted = 5 -> PooledMailKit.Errors.SmtpFailureKind
 PooledMailKit.Errors.SmtpFailureKind.RetryableBeforeSend = 0 -> PooledMailKit.Errors.SmtpFailureKind

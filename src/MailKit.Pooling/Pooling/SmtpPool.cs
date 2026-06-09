@@ -2,6 +2,7 @@ using PooledMailKit.Abstractions;
 using PooledMailKit.Errors;
 using PooledMailKit.Metrics;
 using PooledMailKit.Options;
+using PooledMailKit.Retry;
 using System.Threading;
 
 namespace PooledMailKit.Pooling;
@@ -74,6 +75,7 @@ internal sealed class SmtpPool : IAsyncDisposable
 
         var acquireStartedAt = clock.UtcNow;
         var deadline = clock.UtcNow + options.AcquireTimeout;
+        var reconnectSuppressedRecorded = false;
         Interlocked.Increment(ref waitingCallers);
 
         try
@@ -142,10 +144,18 @@ internal sealed class SmtpPool : IAsyncDisposable
 
                 if (reconnectSuppressed)
                 {
-                    metrics.Record(new SmtpPoolMetricEvent(
-                        SmtpMetricNames.PoolReconnectSuppressed,
-                        SmtpMetricInstrumentKind.Counter,
-                        1));
+                    if (!reconnectSuppressedRecorded)
+                    {
+                        metrics.Record(new SmtpPoolMetricEvent(
+                            SmtpMetricNames.PoolReconnectSuppressed,
+                            SmtpMetricInstrumentKind.Counter,
+                            1));
+                        reconnectSuppressedRecorded = true;
+                    }
+                }
+                else
+                {
+                    reconnectSuppressedRecorded = false;
                 }
 
                 if (brokenConnections is not null)
@@ -190,6 +200,7 @@ internal sealed class SmtpPool : IAsyncDisposable
                         lock (sync)
                         {
                             pendingConnectionCreations--;
+                            RegisterSuccessfulConnectionCreation(pooledConnection.HostState);
                             connections.Add(pooledConnection.Id, pooledConnection);
                         }
 
@@ -207,7 +218,7 @@ internal sealed class SmtpPool : IAsyncDisposable
                         lock (sync)
                         {
                             pendingConnectionCreations--;
-                            ApplyCooldown(selectedHost!, now + options.ReconnectCooldown);
+                            ApplyReconnectCooldown(selectedHost!, now);
                         }
 
                         metrics.Record(new SmtpPoolMetricEvent(
@@ -242,7 +253,7 @@ internal sealed class SmtpPool : IAsyncDisposable
         {
             return new SmtpPoolSnapshot(
                 connections.Count + pendingConnectionCreations,
-                idleConnectionIds.Count,
+                CountIdleConnectionsUnsafe(),
                 connections.Values.Count(static connection => connection.IsLeased),
                 Volatile.Read(ref waitingCallers),
                 GetNextCreationAllowedAtUnsafe());
@@ -297,7 +308,7 @@ internal sealed class SmtpPool : IAsyncDisposable
             if (disposed || !isReusable || !connection.Client.IsConnected || !connection.Client.IsAuthenticated)
             {
                 connections.Remove(connectionId);
-                ApplyCooldown(connection.HostState, clock.UtcNow + options.ReconnectCooldown);
+                ApplyReconnectCooldown(connection.HostState, clock.UtcNow);
                 if (!disposed && connections.Count + pendingConnectionCreations < options.MinPoolSize)
                 {
                     ScheduleMinPoolRefill();
@@ -372,6 +383,7 @@ internal sealed class SmtpPool : IAsyncDisposable
                 lock (sync)
                 {
                     pendingConnectionCreations--;
+                    RegisterSuccessfulConnectionCreation(pooledConnection.HostState);
                     connections.Add(pooledConnection.Id, pooledConnection);
                     idleConnectionIds.Enqueue(pooledConnection.Id);
                     nextMinPoolRefillAllowedAt = null;
@@ -389,7 +401,7 @@ internal sealed class SmtpPool : IAsyncDisposable
                 lock (sync)
                 {
                     pendingConnectionCreations--;
-                    ApplyCooldown(selectedHost!, now + options.ReconnectCooldown);
+                    ApplyReconnectCooldown(selectedHost!, now);
                 }
 
                 metrics.Record(new SmtpPoolMetricEvent(
@@ -710,10 +722,48 @@ internal sealed class SmtpPool : IAsyncDisposable
         return true;
     }
 
-    private void ApplyCooldown(HostRuntimeState hostState, DateTimeOffset nextAllowedAt)
+    private int CountIdleConnectionsUnsafe()
     {
-        hostState.NextCreationAllowedAt = nextAllowedAt;
+        var idleCount = 0;
+        foreach (var connectionId in idleConnectionIds)
+        {
+            if (connections.TryGetValue(connectionId, out var connection) && !connection.IsLeased)
+            {
+                idleCount++;
+            }
+        }
+
+        return idleCount;
+    }
+
+    private void ApplyReconnectCooldown(HostRuntimeState hostState, DateTimeOffset failedAt)
+    {
+        hostState.ConsecutiveConnectionFailures++;
+        var cooldown = CalculateReconnectCooldown(hostState.ConsecutiveConnectionFailures);
+        hostState.NextCreationAllowedAt = failedAt + cooldown;
         hostState.CurrentWeight = 0;
+    }
+
+    private TimeSpan CalculateReconnectCooldown(int consecutiveFailures)
+    {
+        var cooldown = RetryDelayCalculator.CalculateNextDelay(
+            consecutiveFailures,
+            options.ReconnectCooldown,
+            options.UseExponentialBackoff,
+            options.JitterRatio);
+
+        if (options.MaxReconnectCooldown > TimeSpan.Zero && cooldown > options.MaxReconnectCooldown)
+        {
+            return options.MaxReconnectCooldown;
+        }
+
+        return cooldown;
+    }
+
+    private static void RegisterSuccessfulConnectionCreation(HostRuntimeState hostState)
+    {
+        hostState.ConsecutiveConnectionFailures = 0;
+        hostState.NextCreationAllowedAt = null;
     }
 
     private DateTimeOffset? GetNextCreationAllowedAt()
@@ -801,5 +851,7 @@ internal sealed class SmtpPool : IAsyncDisposable
         public DateTimeOffset? NextCreationAllowedAt { get; set; }
 
         public int CurrentWeight { get; set; }
+
+        public int ConsecutiveConnectionFailures { get; set; }
     }
 }

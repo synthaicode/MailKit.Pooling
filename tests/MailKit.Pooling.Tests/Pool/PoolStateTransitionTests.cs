@@ -261,6 +261,34 @@ public sealed class PoolStateTransitionTests
     }
 
     [Fact]
+    public async Task Disposed_Lease_Is_Not_Returned_As_Reusable()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        var firstClient = new FakeSmtpClientAdapter();
+        var replacementClient = new FakeSmtpClientAdapter();
+        factory.Enqueue(firstClient);
+        factory.Enqueue(replacementClient);
+
+        await using var pool = new SmtpPool(
+            CreateOptions(reconnectCooldown: TimeSpan.Zero),
+            factory,
+            clock);
+
+        var lease = await pool.AcquireLeaseAsync();
+        var firstConnectionId = lease.ConnectionId;
+        await lease.DisposeAsync();
+
+        var replacementLease = await pool.AcquireLeaseAsync();
+
+        Assert.NotEqual(firstConnectionId, replacementLease.ConnectionId);
+        Assert.Same(replacementClient, replacementLease.Client);
+        Assert.Equal(1, firstClient.DisposeCalls);
+
+        await replacementLease.ReturnAsync();
+    }
+
+    [Fact]
     public async Task Cooldown_Blocks_Immediate_Recreation_After_Discard()
     {
         var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
@@ -290,6 +318,75 @@ public sealed class PoolStateTransitionTests
 
         Assert.Equal(2, factory.CreateCalls);
         await nextLease.ReturnAsync();
+    }
+
+    [Fact]
+    public async Task ReconnectCooldown_Uses_Exponential_Backoff_Up_To_MaxReconnectCooldown()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        factory.EnqueueFailure(new TimeoutException("first failure"));
+        factory.EnqueueFailure(new TimeoutException("second failure"));
+        factory.Enqueue(new FakeSmtpClientAdapter());
+
+        await using var pool = new SmtpPool(
+            CreateOptions(
+                acquireTimeout: TimeSpan.FromMinutes(1),
+                reconnectCooldown: TimeSpan.FromSeconds(5),
+                maxReconnectCooldown: TimeSpan.FromSeconds(8),
+                useExponentialBackoff: true,
+                jitterRatio: 0d),
+            factory,
+            clock);
+
+        await Assert.ThrowsAsync<TimeoutException>(() => pool.AcquireLeaseAsync());
+        Assert.Equal(clock.UtcNow + TimeSpan.FromSeconds(5), pool.GetSnapshot().NextCreationAllowedAt);
+
+        clock.Advance(TimeSpan.FromSeconds(5));
+        await Assert.ThrowsAsync<TimeoutException>(() => pool.AcquireLeaseAsync());
+        Assert.Equal(clock.UtcNow + TimeSpan.FromSeconds(8), pool.GetSnapshot().NextCreationAllowedAt);
+
+        clock.Advance(TimeSpan.FromSeconds(8));
+        var lease = await pool.AcquireLeaseAsync();
+        await lease.ReturnAsync();
+    }
+
+    [Fact]
+    public async Task ReconnectSuppressed_Is_Recorded_Once_Per_Blocked_Acquire()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        var metrics = new RecordingSmtpPoolMetrics();
+        factory.Enqueue(new FakeSmtpClientAdapter());
+        factory.Enqueue(new FakeSmtpClientAdapter());
+
+        await using var pool = new SmtpPool(
+            CreateOptions(
+                acquireTimeout: TimeSpan.FromSeconds(40),
+                reconnectCooldown: TimeSpan.FromSeconds(30)),
+            factory,
+            clock,
+            metrics);
+
+        var lease = await pool.AcquireLeaseAsync();
+        await lease.InvalidateAsync();
+
+        var pendingAcquire = pool.AcquireLeaseAsync();
+        await Task.Yield();
+        Assert.Equal(1, metrics.Count(SmtpMetricNames.PoolReconnectSuppressed));
+
+        for (var i = 0; i < 5; i++)
+        {
+            clock.Advance(TimeSpan.FromSeconds(5));
+            await Task.Yield();
+            Assert.False(pendingAcquire.IsCompleted);
+            Assert.Equal(1, metrics.Count(SmtpMetricNames.PoolReconnectSuppressed));
+        }
+
+        clock.Advance(TimeSpan.FromSeconds(5));
+        var nextLease = await pendingAcquire;
+        await nextLease.ReturnAsync();
+        Assert.Equal(1, metrics.Count(SmtpMetricNames.PoolReconnectSuppressed));
     }
 
     [Fact]
@@ -591,9 +688,12 @@ public sealed class PoolStateTransitionTests
         int minPoolSize = 0,
         TimeSpan? acquireTimeout = null,
         TimeSpan? reconnectCooldown = null,
+        TimeSpan? maxReconnectCooldown = null,
         TimeSpan? keepAliveInterval = null,
         TimeSpan? idleTimeout = null,
-        TimeSpan? minPoolRefillDelay = null)
+        TimeSpan? minPoolRefillDelay = null,
+        bool useExponentialBackoff = true,
+        double jitterRatio = 0d)
     {
         return new SmtpPoolOptions
         {
@@ -605,9 +705,12 @@ public sealed class PoolStateTransitionTests
             MinPoolSize = minPoolSize,
             AcquireTimeout = acquireTimeout ?? TimeSpan.FromSeconds(15),
             ReconnectCooldown = reconnectCooldown ?? TimeSpan.FromSeconds(30),
+            MaxReconnectCooldown = maxReconnectCooldown ?? TimeSpan.FromMinutes(5),
             KeepAliveInterval = keepAliveInterval ?? TimeSpan.FromMinutes(1),
             IdleTimeout = idleTimeout ?? TimeSpan.FromMinutes(2),
             MinPoolRefillDelay = minPoolRefillDelay ?? TimeSpan.Zero,
+            UseExponentialBackoff = useExponentialBackoff,
+            JitterRatio = jitterRatio,
         };
     }
 

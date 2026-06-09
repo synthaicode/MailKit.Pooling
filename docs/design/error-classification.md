@@ -12,7 +12,6 @@ Retry behavior is unsafe unless the library knows both the failure category and 
 - `ConnectionCorrupted`
 - `UnknownAfterData`
 - `PoolExhausted`
-- `HostUnavailable`
 
 ## Stage model
 

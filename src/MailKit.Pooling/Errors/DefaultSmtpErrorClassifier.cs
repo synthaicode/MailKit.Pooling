@@ -22,16 +22,6 @@ internal sealed class DefaultSmtpErrorClassifier : ISmtpErrorClassifier
                 "Pool acquisition timed out before a connection lease became available.");
         }
 
-        if (exception is HostUnavailableException)
-        {
-            return Create(
-                SmtpFailureKind.HostUnavailable,
-                stage,
-                isRetryAllowed: false,
-                shouldDiscardConnection: false,
-                "The selected SMTP host is currently suppressed or unavailable.");
-        }
-
         if (exception is AuthenticationException or ServiceNotAuthenticatedException)
         {
             return Create(
@@ -100,14 +90,22 @@ internal sealed class DefaultSmtpErrorClassifier : ISmtpErrorClassifier
 
         if (statusCode >= 400)
         {
+            if (IsAfterDataBoundary(stage))
+            {
+                return Create(
+                    SmtpFailureKind.UnknownAfterData,
+                    stage,
+                    isRetryAllowed: false,
+                    shouldDiscardConnection: true,
+                    $"SMTP temporary status {statusCode} occurred after DATA and is ambiguous.");
+            }
+
             return Create(
                 SmtpFailureKind.RetryableTemporaryFailure,
                 stage,
-                isRetryAllowed: !IsAfterDataBoundary(stage),
+                isRetryAllowed: true,
                 shouldDiscardConnection: true,
-                IsAfterDataBoundary(stage)
-                    ? $"SMTP temporary status {statusCode} occurred after DATA and is ambiguous."
-                    : $"SMTP command failed with temporary status {statusCode}.");
+                $"SMTP command failed with temporary status {statusCode}.");
         }
 
         return Create(

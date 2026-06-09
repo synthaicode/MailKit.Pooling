@@ -160,10 +160,10 @@ internal sealed class SmtpSender : ISmtpSender
         }
     }
 
-    private bool ShouldRetry(SmtpFailureClassification classification, int attempts)
+    private bool ShouldRetry(SmtpFailureClassification classification, int completedAttempts)
     {
         return classification.IsRetryAllowed
-            && attempts <= options.MaxRetryAttempts;
+            && completedAttempts <= options.MaxRetryAttempts;
     }
 
     private static async Task CompleteLeaseBestEffortAsync(

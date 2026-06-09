@@ -19,6 +19,7 @@ public static class ServiceCollectionExtensions
     /// </summary>
     /// <param name="services">The service collection to update.</param>
     /// <param name="configure">The pool configuration callback.</param>
+    /// <remarks>Dispose the root <see cref="IServiceProvider"/> or host to ensure pooled SMTP connections are released.</remarks>
     /// <returns>The original service collection.</returns>
     public static IServiceCollection AddMailKitPooling(
         this IServiceCollection services,

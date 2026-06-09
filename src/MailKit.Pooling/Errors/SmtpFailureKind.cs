@@ -35,8 +35,4 @@ public enum SmtpFailureKind
     /// </summary>
     PoolExhausted,
 
-    /// <summary>
-    /// The target host is unavailable or currently degraded.
-    /// </summary>
-    HostUnavailable,
 }

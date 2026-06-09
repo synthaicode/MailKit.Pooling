@@ -95,12 +95,13 @@ internal sealed class SystemDiagnosticsSmtpPoolMetrics : ISmtpPoolMetrics, IDisp
     private IEnumerable<Measurement<double>> ObserveGauge(string metricName)
     {
         List<Measurement<double>> measurements = [];
+        var prefix = $"{metricName}|";
 
         lock (sync)
         {
             foreach (var pair in gaugeValues)
             {
-                if (!pair.Key.StartsWith(metricName, StringComparison.Ordinal))
+                if (!pair.Key.StartsWith(prefix, StringComparison.Ordinal))
                 {
                     continue;
                 }

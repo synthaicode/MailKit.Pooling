@@ -55,14 +55,17 @@ public sealed class DefaultSmtpErrorClassifierTests
     }
 
     [Fact]
-    public void HostUnavailable_Stays_Explicit()
+    public void Temporary_Smtp_Status_After_Data_Is_UnknownAfterData()
     {
-        var result = classifier.Classify(
-            new HostUnavailableException("cooldown active"),
-            SmtpSendStage.BeforeConnect);
+        var exception = new global::MailKit.Net.Smtp.SmtpCommandException(
+            global::MailKit.Net.Smtp.SmtpErrorCode.MessageNotAccepted,
+            global::MailKit.Net.Smtp.SmtpStatusCode.ErrorInProcessing,
+            "temporary failure after DATA");
 
-        Assert.Equal(SmtpFailureKind.HostUnavailable, result.Kind);
+        var result = classifier.Classify(exception, SmtpSendStage.DataStarted);
+
+        Assert.Equal(SmtpFailureKind.UnknownAfterData, result.Kind);
         Assert.False(result.IsRetryAllowed);
-        Assert.False(result.ShouldDiscardConnection);
+        Assert.True(result.ShouldDiscardConnection);
     }
 }
