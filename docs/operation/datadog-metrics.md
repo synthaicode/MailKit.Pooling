@@ -11,22 +11,22 @@ For Datadog, the usual path is:
 
 ## What MailKit.Pooling Emits
 
-The library emits metrics under the `mailkit.*` contract, including:
+The library emits metrics under the `pooledmailkit.*` contract, including:
 
-- `mailkit.pool.connections.active`
-- `mailkit.pool.connections.idle`
-- `mailkit.pool.host.cooldown.active`
-- `mailkit.pool.host.available`
-- `mailkit.pool.acquire.wait_time`
-- `mailkit.pool.lease.duration`
-- `mailkit.pool.connections.created`
-- `mailkit.pool.connections.dropped`
-- `mailkit.pool.keepalive.failure.count`
-- `mailkit.send.duration`
-- `mailkit.send.failed.count`
-- `mailkit.send.definitely_not_accepted.count`
-- `mailkit.send.ambiguous.count`
-- `mailkit.send.classification.count`
+- `pooledmailkit.pool.connections.active`
+- `pooledmailkit.pool.connections.idle`
+- `pooledmailkit.pool.host.cooldown.active`
+- `pooledmailkit.pool.host.available`
+- `pooledmailkit.pool.acquire.wait_time`
+- `pooledmailkit.pool.lease.duration`
+- `pooledmailkit.pool.connections.created`
+- `pooledmailkit.pool.connections.dropped`
+- `pooledmailkit.pool.keepalive.failure.count`
+- `pooledmailkit.send.duration`
+- `pooledmailkit.send.failed.count`
+- `pooledmailkit.send.definitely_not_accepted.count`
+- `pooledmailkit.send.ambiguous.count`
+- `pooledmailkit.send.classification.count`
 
 For the full metric contract, see `metrics-and-logging.md`.
 
@@ -79,7 +79,7 @@ builder.Services
 Important:
 
 - meter name: `MailKit.Pooling`
-- metric names: `mailkit.*`
+- metric names: `pooledmailkit.*`
 
 ## Datadog via OTLP to the Datadog Agent
 
@@ -128,29 +128,29 @@ these questions:
 
 ### Pool pressure
 
-- `mailkit.pool.connections.active`
-- `mailkit.pool.connections.idle`
-- `mailkit.pool.acquire.wait_time`
-- `mailkit.pool.acquire.exhausted.count`
+- `pooledmailkit.pool.connections.active`
+- `pooledmailkit.pool.connections.idle`
+- `pooledmailkit.pool.acquire.wait_time`
+- `pooledmailkit.pool.acquire.exhausted.count`
 
 ### Connection churn
 
-- `mailkit.pool.connections.created`
-- `mailkit.pool.connections.dropped`
-- `mailkit.pool.keepalive.failure.count`
+- `pooledmailkit.pool.connections.created`
+- `pooledmailkit.pool.connections.dropped`
+- `pooledmailkit.pool.keepalive.failure.count`
 
 ### Host degradation
 
-- `mailkit.pool.host.cooldown.active`
-- `mailkit.pool.host.available`
-- `mailkit.pool.reconnect.suppressed`
+- `pooledmailkit.pool.host.cooldown.active`
+- `pooledmailkit.pool.host.available`
+- `pooledmailkit.pool.reconnect.suppressed`
 
 ### Delivery outcomes
 
-- `mailkit.send.failed.count`
-- `mailkit.send.definitely_not_accepted.count`
-- `mailkit.send.ambiguous.count`
-- `mailkit.send.classification.count`
+- `pooledmailkit.send.failed.count`
+- `pooledmailkit.send.definitely_not_accepted.count`
+- `pooledmailkit.send.ambiguous.count`
+- `pooledmailkit.send.classification.count`
 
 ## Tags
 

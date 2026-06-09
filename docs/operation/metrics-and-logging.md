@@ -47,7 +47,7 @@ only as a general send failure.
 
 ### Pool State
 
-#### `mailkit.pool.connections.active`
+#### `pooledmailkit.pool.connections.active`
 
 - instrument: `gauge`
 - meaning: number of currently leased SMTP connections
@@ -55,7 +55,7 @@ only as a general send failure.
   - spikes indicate real send pressure
   - a sustained plateau at `MaxPoolSize` indicates saturation pressure
 
-#### `mailkit.pool.connections.idle`
+#### `pooledmailkit.pool.connections.idle`
 
 - instrument: `gauge`
 - meaning: number of currently idle pooled connections
@@ -63,7 +63,7 @@ only as a general send failure.
   - `0` during sustained traffic may indicate an undersized pool
   - a consistently high value may indicate over-allocation
 
-#### `mailkit.pool.host.cooldown.active`
+#### `pooledmailkit.pool.host.cooldown.active`
 
 - instrument: `gauge`
 - meaning: whether a given SMTP host is currently in reconnect cooldown
@@ -73,7 +73,7 @@ only as a general send failure.
   - `1` means new connection creation for that host is currently suppressed
   - useful for confirming host-scoped cooldown during outages or failover
 
-#### `mailkit.pool.host.available`
+#### `pooledmailkit.pool.host.available`
 
 - instrument: `gauge`
 - meaning: whether a given SMTP host is currently eligible for new connection creation
@@ -81,9 +81,9 @@ only as a general send failure.
   - `smtp.host`
 - interpretation:
   - `0` means the host is temporarily unavailable for pool growth, typically because it is in cooldown
-  - useful alongside `mailkit.pool.host.cooldown.active` when comparing multiple hosts
+  - useful alongside `pooledmailkit.pool.host.cooldown.active` when comparing multiple hosts
 
-#### `mailkit.pool.acquire.wait_time`
+#### `pooledmailkit.pool.acquire.wait_time`
 
 - instrument: `histogram`
 - unit: time
@@ -91,14 +91,14 @@ only as a general send failure.
 - interpretation:
   - rising percentiles indicate pool pressure before outright exhaustion
 
-#### `mailkit.pool.acquire.exhausted.count`
+#### `pooledmailkit.pool.acquire.exhausted.count`
 
 - instrument: `counter`
 - meaning: number of pool-exhaustion outcomes
 - interpretation:
   - non-zero values indicate callers timed out waiting for a lease
 
-#### `mailkit.pool.lease.duration`
+#### `pooledmailkit.pool.lease.duration`
 
 - instrument: `histogram`
 - unit: time
@@ -111,14 +111,14 @@ only as a general send failure.
 
 ### Connection Lifecycle
 
-#### `mailkit.pool.connections.created`
+#### `pooledmailkit.pool.connections.created`
 
 - instrument: `counter`
 - meaning: cumulative number of SMTP connections created
 - interpretation:
   - unusually high values relative to send volume suggest churn or repeated reconnects
 
-#### `mailkit.pool.connections.dropped`
+#### `pooledmailkit.pool.connections.dropped`
 
 - instrument: `counter`
 - meaning: cumulative number of pooled connections discarded
@@ -133,21 +133,21 @@ only as a general send failure.
 - interpretation:
   - high `broken` or `keepalive_failure` counts indicate unstable sessions
 
-#### `mailkit.pool.connection.create.failures`
+#### `pooledmailkit.pool.connection.create.failures`
 
 - instrument: `counter`
 - meaning: cumulative number of connection creation failures
 - interpretation:
   - useful for host outage detection and repeated connect failures
 
-#### `mailkit.pool.reconnect.suppressed`
+#### `pooledmailkit.pool.reconnect.suppressed`
 
 - instrument: `counter`
 - meaning: number of reconnect attempts suppressed because the host was in cooldown
 - interpretation:
   - directly indicates reconnect storm suppression activity
 
-#### `mailkit.pool.keepalive.failure.count`
+#### `pooledmailkit.pool.keepalive.failure.count`
 
 - instrument: `counter`
 - meaning: number of keepalive `NOOP` failures observed before idle connection reuse
@@ -155,11 +155,11 @@ only as a general send failure.
   - `smtp.host`
 - interpretation:
   - isolates stale or unstable idle connections even when overall drop counts are aggregated elsewhere
-  - complements `mailkit.pool.connections.dropped{reason=keepalive_failure}`
+  - complements `pooledmailkit.pool.connections.dropped{reason=keepalive_failure}`
 
 ### Send Path
 
-#### `mailkit.send.duration`
+#### `pooledmailkit.send.duration`
 
 - instrument: `histogram`
 - unit: time
@@ -167,12 +167,12 @@ only as a general send failure.
 - interpretation:
   - long tails can indicate SMTP server slowness or infrastructure degradation
 
-#### `mailkit.send.success.count`
+#### `pooledmailkit.send.success.count`
 
 - instrument: `counter`
 - meaning: cumulative number of successful sends
 
-#### `mailkit.send.failed.count`
+#### `pooledmailkit.send.failed.count`
 
 - instrument: `counter`
 - meaning: cumulative number of failed sends
@@ -183,7 +183,7 @@ only as a general send failure.
   - lets operators distinguish `PoolExhausted`, `AuthFailure`,
     `RetryableBeforeSend`, `UnknownAfterData`, and similar categories
 
-#### `mailkit.send.definitely_not_accepted.count`
+#### `pooledmailkit.send.definitely_not_accepted.count`
 
 - instrument: `counter`
 - meaning: number of failed sends that did not cross the SMTP `DATA` ambiguity boundary
@@ -194,19 +194,19 @@ only as a general send failure.
   - excludes `UnknownAfterData`
   - useful when operators want a conservative "not accepted" count without mixing in ambiguous outcomes
 
-#### `mailkit.send.ambiguous.count`
+#### `pooledmailkit.send.ambiguous.count`
 
 - instrument: `counter`
 - meaning: number of post-`DATA` ambiguous outcomes
 - interpretation:
   - this is operationally important for duplicate-send risk analysis
 
-#### `mailkit.send.retry.count`
+#### `pooledmailkit.send.retry.count`
 
 - instrument: `counter`
 - meaning: cumulative number of retries attempted by the library
 
-#### `mailkit.send.classification.count`
+#### `pooledmailkit.send.classification.count`
 
 - instrument: `counter`
 - meaning: cumulative number of classified failures
@@ -268,7 +268,7 @@ Do not log:
 ## Current Design Boundary
 
 The current code already emits `System.Diagnostics.Metrics` metrics under the
-`mailkit.*` naming contract described above.
+`pooledmailkit.*` naming contract described above.
 
 The metrics implementation types and abstraction remain `internal` by design.
 That is intentional. The library currently exposes metrics for collection, but

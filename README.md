@@ -91,9 +91,9 @@ For release-facing notes, see `docs/release/0.1.0.md` and `CHANGELOG.md`.
 
 The current telemetry contract includes:
 
-- pool state gauges such as `mailkit.pool.connections.active`, `mailkit.pool.connections.idle`, `mailkit.pool.host.cooldown.active`, and `mailkit.pool.host.available`
-- pressure and lifecycle metrics such as `mailkit.pool.acquire.wait_time`, `mailkit.pool.lease.duration`, `mailkit.pool.connections.created`, `mailkit.pool.connections.dropped`, and `mailkit.pool.keepalive.failure.count`
-- send-path metrics such as `mailkit.send.duration`, `mailkit.send.failed.count`, `mailkit.send.definitely_not_accepted.count`, `mailkit.send.ambiguous.count`, and `mailkit.send.classification.count`
+- pool state gauges such as `pooledmailkit.pool.connections.active`, `pooledmailkit.pool.connections.idle`, `pooledmailkit.pool.host.cooldown.active`, and `pooledmailkit.pool.host.available`
+- pressure and lifecycle metrics such as `pooledmailkit.pool.acquire.wait_time`, `pooledmailkit.pool.lease.duration`, `pooledmailkit.pool.connections.created`, `pooledmailkit.pool.connections.dropped`, and `pooledmailkit.pool.keepalive.failure.count`
+- send-path metrics such as `pooledmailkit.send.duration`, `pooledmailkit.send.failed.count`, `pooledmailkit.send.definitely_not_accepted.count`, `pooledmailkit.send.ambiguous.count`, and `pooledmailkit.send.classification.count`
 
 ## Quick Start
 
@@ -316,7 +316,7 @@ That stabilization changed the test harness behavior to use a shared smtp4dev lo
 
 The following areas are still incomplete or intentionally limited:
 
-- metrics are emitted through `System.Diagnostics.Metrics` with the current `mailkit.*` contract; the internal implementation is intentional, while public customization and long-term compatibility policy remain intentionally narrow
+- metrics are emitted through `System.Diagnostics.Metrics` with the current `pooledmailkit.*` contract; the internal implementation is intentional, while public customization and long-term compatibility policy remain intentionally narrow
 - TIME_WAIT observation is implemented for Windows, Linux, and macOS in the stress harness; recorded validation currently covers Windows and Linux, while macOS remains unverified
 - stress/resource scenarios are manual and are not part of normal fast test execution
 - reconnect validation now includes sustained outages, repeated flapping, and multi-host partial outage scenarios, but more advanced fault injection patterns such as latency shaping or packet blackholing still remain future work
