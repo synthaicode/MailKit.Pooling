@@ -7,7 +7,7 @@ namespace PooledMailKit.Metrics;
 
 internal sealed class SystemDiagnosticsSmtpPoolMetrics : ISmtpPoolMetrics, IDisposable
 {
-    private readonly Meter meter = new("MailKit.Pooling");
+    private readonly Meter meter = new("PooledMailKit");
     private readonly object sync = new();
     private readonly Dictionary<string, Counter<double>> counters = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Histogram<double>> histograms = new(StringComparer.Ordinal);
@@ -53,7 +53,7 @@ internal sealed class SystemDiagnosticsSmtpPoolMetrics : ISmtpPoolMetrics, IDisp
                         () => ObserveGauge(metricEvent.Name),
                         description: string.Create(
                             CultureInfo.InvariantCulture,
-                            $"MailKit.Pooling metric '{metricEvent.Name}'.")));
+                            $"PooledMailKit metric '{metricEvent.Name}'.")));
             }
 
             gaugeValues[BuildGaugeKey(metricEvent.Name, metricEvent.SmtpHost)] = metricEvent.Value;
@@ -68,7 +68,7 @@ internal sealed class SystemDiagnosticsSmtpPoolMetrics : ISmtpPoolMetrics, IDisp
             {
                 counter = meter.CreateCounter<double>(
                     metricName,
-                    description: string.Create(CultureInfo.InvariantCulture, $"MailKit.Pooling metric '{metricName}'."));
+                    description: string.Create(CultureInfo.InvariantCulture, $"PooledMailKit metric '{metricName}'."));
                 counters.Add(metricName, counter);
             }
 
@@ -84,7 +84,7 @@ internal sealed class SystemDiagnosticsSmtpPoolMetrics : ISmtpPoolMetrics, IDisp
             {
                 histogram = meter.CreateHistogram<double>(
                     metricName,
-                    description: string.Create(CultureInfo.InvariantCulture, $"MailKit.Pooling metric '{metricName}'."));
+                    description: string.Create(CultureInfo.InvariantCulture, $"PooledMailKit metric '{metricName}'."));
                 histograms.Add(metricName, histogram);
             }
 

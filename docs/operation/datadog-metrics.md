@@ -6,7 +6,7 @@ This document describes how to collect `MailKit.Pooling` metrics in Datadog.
 For Datadog, the usual path is:
 
 1. enable `MailKit.Pooling` metrics
-2. register `Meter("MailKit.Pooling")` in OpenTelemetry
+2. register `Meter("PooledMailKit")` in OpenTelemetry
 3. export OTLP metrics to the Datadog Agent or Datadog OTLP intake
 
 ## What MailKit.Pooling Emits
@@ -58,7 +58,7 @@ builder.Services.AddMailKitPooling(options =>
 Datadog collection does not require direct access to internal `MailKit.Pooling`
 metrics types.
 
-The application only needs to subscribe to the `MailKit.Pooling` meter:
+The application only needs to subscribe to the `PooledMailKit` meter:
 
 ```csharp
 using OpenTelemetry.Metrics;
@@ -70,7 +70,7 @@ builder.Services
     .WithMetrics(metrics =>
     {
         metrics
-            .AddMeter("MailKit.Pooling")
+            .AddMeter("PooledMailKit")
             .AddAspNetCoreInstrumentation()
             .AddRuntimeInstrumentation();
     });
@@ -78,7 +78,7 @@ builder.Services
 
 Important:
 
-- meter name: `MailKit.Pooling`
+- meter name: `PooledMailKit`
 - metric names: `pooledmailkit.*`
 
 ## Datadog via OTLP to the Datadog Agent
@@ -96,7 +96,7 @@ builder.Services
     .WithMetrics(metrics =>
     {
         metrics
-            .AddMeter("MailKit.Pooling")
+            .AddMeter("PooledMailKit")
             .AddAspNetCoreInstrumentation()
             .AddRuntimeInstrumentation()
             .AddOtlpExporter(options =>
@@ -118,7 +118,7 @@ side rather than in `MailKit.Pooling`.
 The application-side `MailKit.Pooling` setup does not change:
 
 - keep `EnableMetrics = true`
-- keep `.AddMeter("MailKit.Pooling")`
+- keep `.AddMeter("PooledMailKit")`
 - change only the OTLP exporter destination
 
 ## Metric Semantics to Watch
