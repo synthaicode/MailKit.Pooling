@@ -350,6 +350,131 @@ public sealed class SmtpSenderTests
         Assert.Equal(1, secondClient.DisposeCalls);
     }
 
+    [Fact]
+    public async Task SendAsync_Infers_Envelope_Stage_From_Recipient_Rejection()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        var metrics = new RecordingSmtpPoolMetrics();
+        var client = new FakeSmtpClientAdapter
+        {
+            OnSendAsync = static (_, _) => Task.FromException(
+                new global::MailKit.Net.Smtp.SmtpCommandException(
+                    global::MailKit.Net.Smtp.SmtpErrorCode.RecipientNotAccepted,
+                    global::MailKit.Net.Smtp.SmtpStatusCode.MailboxUnavailable,
+                    "recipient rejected")),
+        };
+        factory.Enqueue(client);
+
+        var options = CreateOptions(reconnectCooldown: TimeSpan.Zero);
+        await using var pool = new SmtpPool(options, factory, clock);
+        var sender = new SmtpSender(pool, new DefaultSmtpErrorClassifier(), options, clock, metrics);
+
+        var exception = await Assert.ThrowsAsync<SmtpSendFailedException>(() => sender.SendAsync(CreateMessage()));
+
+        Assert.Equal(SmtpFailureKind.PermanentFailure, exception.Classification.Kind);
+        Assert.Equal(SmtpSendStage.EnvelopeStarted, exception.Classification.Stage);
+        Assert.Equal(1, metrics.Count(SmtpMetricNames.SendDefinitelyNotAcceptedCount));
+        Assert.Equal(0, metrics.Count(SmtpMetricNames.SendAmbiguousCount));
+    }
+
+    [Fact]
+    public async Task SendAsync_Retries_Temporary_Data_Rejection_On_The_Same_Connection()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        var sendCalls = 0;
+        var client = new FakeSmtpClientAdapter();
+        client.OnSendAsync = (_, _) => ++sendCalls == 1
+            ? Task.FromException(
+                new global::MailKit.Net.Smtp.SmtpCommandException(
+                    global::MailKit.Net.Smtp.SmtpErrorCode.MessageNotAccepted,
+                    global::MailKit.Net.Smtp.SmtpStatusCode.ErrorInProcessing,
+                    "451 temporarily rejected"))
+            : Task.CompletedTask;
+        factory.Enqueue(client);
+
+        var options = CreateOptions(
+            reconnectCooldown: TimeSpan.Zero,
+            maxRetryAttempts: 1,
+            retryBaseDelay: TimeSpan.Zero);
+        await using var pool = new SmtpPool(options, factory, clock);
+        var sender = new SmtpSender(pool, new DefaultSmtpErrorClassifier(), options, clock);
+
+        var result = await sender.SendAsync(CreateMessage());
+
+        Assert.Equal(2, result.Attempts);
+        Assert.Equal(2, client.SendCalls);
+        Assert.Equal(1, factory.CreateCalls);
+        Assert.Equal(0, client.DisposeCalls);
+    }
+
+    [Fact]
+    public async Task SendAsync_Retry_Delay_Uses_The_Injected_Clock()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        var firstClient = new FakeSmtpClientAdapter
+        {
+            OnSendAsync = static (_, _) => Task.FromException(
+                new SmtpStageAwareException(
+                    "retryable failure",
+                    SmtpSendStage.EnvelopeStarted,
+                    new TimeoutException("socket timed out"))),
+        };
+        var replacementClient = new FakeSmtpClientAdapter();
+        factory.Enqueue(firstClient);
+        factory.Enqueue(replacementClient);
+
+        var options = CreateOptions(
+            reconnectCooldown: TimeSpan.Zero,
+            maxRetryAttempts: 1,
+            retryBaseDelay: TimeSpan.FromSeconds(5));
+        await using var pool = new SmtpPool(options, factory, clock);
+        var sender = new SmtpSender(pool, new DefaultSmtpErrorClassifier(), options, clock);
+
+        var delayCallsBefore = clock.DelayCallCount;
+        var sendTask = sender.SendAsync(CreateMessage());
+
+        Assert.True(
+            SpinWait.SpinUntil(() => clock.DelayCallCount > delayCallsBefore, TimeSpan.FromSeconds(1)),
+            "Expected the retry path to wait on IClock.Delay.");
+        Assert.False(sendTask.IsCompleted);
+
+        clock.Advance(TimeSpan.FromSeconds(5));
+        var result = await sendTask;
+
+        Assert.Equal(2, result.Attempts);
+        Assert.Equal(1, replacementClient.SendCalls);
+    }
+
+    [Fact]
+    public async Task SendAsync_Reports_Success_When_Lease_Cleanup_Refill_Fails()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        var client = new FakeSmtpClientAdapter();
+        client.OnSendAsync = (_, _) =>
+        {
+            // The send is accepted, but the connection dies right afterwards so the
+            // lease return discards it and triggers a warm refill that fails.
+            client.IsConnected = false;
+            return Task.CompletedTask;
+        };
+        factory.Enqueue(client);
+        factory.EnqueueFailure(new TimeoutException("warm refill failed"));
+
+        var options = CreateOptions(reconnectCooldown: TimeSpan.Zero);
+        options.MinPoolSize = 1;
+        await using var pool = new SmtpPool(options, factory, clock);
+        var sender = new SmtpSender(pool, new DefaultSmtpErrorClassifier(), options, clock);
+
+        var result = await sender.SendAsync(CreateMessage());
+
+        Assert.Equal(1, result.Attempts);
+        Assert.Equal(1, client.SendCalls);
+    }
+
     private static async Task<FakeSmtpClientAdapter> GetCurrentClientAsync(SmtpPool pool)
     {
         var lease = await pool.AcquireLeaseAsync();

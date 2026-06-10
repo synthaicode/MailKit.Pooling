@@ -55,10 +55,10 @@ public sealed class DefaultSmtpErrorClassifierTests
     }
 
     [Fact]
-    public void Temporary_Smtp_Status_After_Data_Is_UnknownAfterData()
+    public void Temporary_Smtp_Status_After_Data_Without_Known_Outcome_Is_UnknownAfterData()
     {
         var exception = new global::MailKit.Net.Smtp.SmtpCommandException(
-            global::MailKit.Net.Smtp.SmtpErrorCode.MessageNotAccepted,
+            global::MailKit.Net.Smtp.SmtpErrorCode.UnexpectedStatusCode,
             global::MailKit.Net.Smtp.SmtpStatusCode.ErrorInProcessing,
             "temporary failure after DATA");
 
@@ -67,5 +67,35 @@ public sealed class DefaultSmtpErrorClassifierTests
         Assert.Equal(SmtpFailureKind.UnknownAfterData, result.Kind);
         Assert.False(result.IsRetryAllowed);
         Assert.True(result.ShouldDiscardConnection);
+    }
+
+    [Fact]
+    public void Temporary_Rejection_Of_Data_Payload_Is_Definitive_And_Retryable()
+    {
+        var exception = new global::MailKit.Net.Smtp.SmtpCommandException(
+            global::MailKit.Net.Smtp.SmtpErrorCode.MessageNotAccepted,
+            global::MailKit.Net.Smtp.SmtpStatusCode.ErrorInProcessing,
+            "451 temporary rejection of the DATA payload");
+
+        var result = classifier.Classify(exception, SmtpSendStage.DataCompleted);
+
+        Assert.Equal(SmtpFailureKind.RetryableTemporaryFailure, result.Kind);
+        Assert.True(result.IsRetryAllowed);
+        Assert.False(result.ShouldDiscardConnection);
+    }
+
+    [Fact]
+    public void Permanent_Rejection_Of_Data_Payload_Is_Definitive_And_Not_Retryable()
+    {
+        var exception = new global::MailKit.Net.Smtp.SmtpCommandException(
+            global::MailKit.Net.Smtp.SmtpErrorCode.MessageNotAccepted,
+            global::MailKit.Net.Smtp.SmtpStatusCode.TransactionFailed,
+            "554 transaction failed");
+
+        var result = classifier.Classify(exception, SmtpSendStage.DataCompleted);
+
+        Assert.Equal(SmtpFailureKind.PermanentFailure, result.Kind);
+        Assert.False(result.IsRetryAllowed);
+        Assert.False(result.ShouldDiscardConnection);
     }
 }

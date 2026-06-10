@@ -30,6 +30,10 @@ public sealed class ReconnectSuppressionStressTests
             AcquireTimeout = TimeSpan.FromSeconds(2),
             ConnectTimeout = TimeSpan.FromSeconds(2),
             ReconnectCooldown = TimeSpan.FromSeconds(2),
+            // This scenario validates suppression and recovery latency, so the
+            // cooldown is pinned to its base value; backoff growth is covered by
+            // deterministic unit tests.
+            MaxReconnectCooldown = TimeSpan.FromSeconds(2),
             RetryBaseDelay = TimeSpan.FromMilliseconds(250),
             MaxRetryAttempts = 0,
             JitterRatio = 0d,

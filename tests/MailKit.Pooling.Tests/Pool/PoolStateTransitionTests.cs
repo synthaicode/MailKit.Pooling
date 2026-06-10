@@ -148,6 +148,30 @@ public sealed class PoolStateTransitionTests
     }
 
     [Fact]
+    public async Task MinPool_Refill_Failure_Does_Not_Fail_Acquire_When_Idle_Connection_Exists()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        var warmClient = new FakeSmtpClientAdapter();
+        factory.Enqueue(warmClient);
+        factory.EnqueueFailure(new TimeoutException("warm refill failed"));
+
+        await using var pool = new SmtpPool(
+            CreateOptions(maxPoolSize: 2, minPoolSize: 2, reconnectCooldown: TimeSpan.FromSeconds(30)),
+            factory,
+            clock);
+
+        // The second warm connection fails to create, but the acquire is still
+        // served from the idle connection that does exist.
+        var lease = await pool.AcquireLeaseAsync();
+
+        Assert.Same(warmClient, lease.Client);
+        Assert.Equal(2, factory.CreateCalls);
+
+        await lease.ReturnAsync();
+    }
+
+    [Fact]
     public async Task AcquireTimeout_Throws_Explicit_PoolExhausted_Error()
     {
         var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
@@ -289,11 +313,11 @@ public sealed class PoolStateTransitionTests
     }
 
     [Fact]
-    public async Task Cooldown_Blocks_Immediate_Recreation_After_Discard()
+    public async Task Cooldown_Blocks_Immediate_Recreation_After_Creation_Failure()
     {
         var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
         var factory = new FakeSmtpConnectionFactory();
-        factory.Enqueue(new FakeSmtpClientAdapter());
+        factory.EnqueueFailure(new TimeoutException("connect timed out"));
         factory.Enqueue(new FakeSmtpClientAdapter());
 
         await using var pool = new SmtpPool(
@@ -301,8 +325,7 @@ public sealed class PoolStateTransitionTests
             factory,
             clock);
 
-        var lease = await pool.AcquireLeaseAsync();
-        await lease.InvalidateAsync();
+        await Assert.ThrowsAsync<TimeoutException>(() => pool.AcquireLeaseAsync());
 
         var pendingAcquire = pool.AcquireLeaseAsync();
         await Task.Yield();
@@ -318,6 +341,31 @@ public sealed class PoolStateTransitionTests
 
         Assert.Equal(2, factory.CreateCalls);
         await nextLease.ReturnAsync();
+    }
+
+    [Fact]
+    public async Task Invalidated_Lease_Does_Not_Put_Host_Into_Cooldown()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        factory.Enqueue(new FakeSmtpClientAdapter());
+        factory.Enqueue(new FakeSmtpClientAdapter());
+
+        await using var pool = new SmtpPool(
+            CreateOptions(reconnectCooldown: TimeSpan.FromSeconds(30)),
+            factory,
+            clock);
+
+        var lease = await pool.AcquireLeaseAsync();
+        await lease.InvalidateAsync();
+
+        Assert.Null(pool.GetSnapshot().NextCreationAllowedAt);
+
+        // The replacement is created immediately without waiting for any cooldown.
+        var replacementLease = await pool.AcquireLeaseAsync();
+
+        Assert.Equal(2, factory.CreateCalls);
+        await replacementLease.ReturnAsync();
     }
 
     [Fact]
@@ -357,7 +405,7 @@ public sealed class PoolStateTransitionTests
         var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
         var factory = new FakeSmtpConnectionFactory();
         var metrics = new RecordingSmtpPoolMetrics();
-        factory.Enqueue(new FakeSmtpClientAdapter());
+        factory.EnqueueFailure(new TimeoutException("connect timed out"));
         factory.Enqueue(new FakeSmtpClientAdapter());
 
         await using var pool = new SmtpPool(
@@ -368,8 +416,7 @@ public sealed class PoolStateTransitionTests
             clock,
             metrics);
 
-        var lease = await pool.AcquireLeaseAsync();
-        await lease.InvalidateAsync();
+        await Assert.ThrowsAsync<TimeoutException>(() => pool.AcquireLeaseAsync());
 
         var pendingAcquire = pool.AcquireLeaseAsync();
         await Task.Yield();
@@ -390,13 +437,12 @@ public sealed class PoolStateTransitionTests
     }
 
     [Fact]
-    public async Task Cooldown_Is_Applied_Per_Host_And_Allows_Failover_To_Another_Host()
+    public async Task Creation_Failure_Fails_Over_To_Another_Host_Within_The_Same_Acquire()
     {
         var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
         var factory = new FakeSmtpConnectionFactory();
-        var firstClient = new FakeSmtpClientAdapter { EndpointKey = "smtp-a.local:2525" };
         var secondClient = new FakeSmtpClientAdapter { EndpointKey = "smtp-b.local:2526" };
-        factory.Enqueue(firstClient);
+        factory.EnqueueFailure(new TimeoutException("primary connect timed out"));
         factory.Enqueue(secondClient);
 
         await using var pool = new SmtpPool(
@@ -404,17 +450,15 @@ public sealed class PoolStateTransitionTests
             factory,
             clock);
 
-        var firstLease = await pool.AcquireLeaseAsync();
-        await firstLease.InvalidateAsync();
-
-        var secondLease = await pool.AcquireLeaseAsync();
+        var lease = await pool.AcquireLeaseAsync();
 
         Assert.Equal(
             ["smtp-a.local:2525", "smtp-b.local:2526"],
             factory.RequestedHosts);
-        Assert.Equal("smtp-b.local:2526", secondLease.EndpointKey);
+        Assert.Equal("smtp-b.local:2526", lease.EndpointKey);
+        Assert.NotNull(pool.GetSnapshot().NextCreationAllowedAt);
 
-        await secondLease.ReturnAsync();
+        await lease.ReturnAsync();
     }
 
     [Fact]
@@ -603,7 +647,7 @@ public sealed class PoolStateTransitionTests
         var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
         var factory = new FakeSmtpConnectionFactory();
         var metrics = new RecordingSmtpPoolMetrics();
-        factory.Enqueue(new FakeSmtpClientAdapter { EndpointKey = "smtp-a.local:2525" });
+        factory.EnqueueFailure(new TimeoutException("primary connect timed out"));
         factory.Enqueue(new FakeSmtpClientAdapter { EndpointKey = "smtp-b.local:2526" });
 
         await using var pool = new SmtpPool(
@@ -613,7 +657,6 @@ public sealed class PoolStateTransitionTests
             metrics);
 
         var lease = await pool.AcquireLeaseAsync();
-        await lease.InvalidateAsync();
 
         Assert.Equal(1, metrics.Latest(SmtpMetricNames.PoolHostCooldownActive, "smtp-a.local:2525")!.Value);
         Assert.Equal(0, metrics.Latest(SmtpMetricNames.PoolHostAvailable, "smtp-a.local:2525")!.Value);
@@ -621,12 +664,10 @@ public sealed class PoolStateTransitionTests
         Assert.Equal(1, metrics.Latest(SmtpMetricNames.PoolHostAvailable, "smtp-b.local:2526")!.Value);
 
         clock.Advance(TimeSpan.FromSeconds(31));
-        var recoveredLease = await pool.AcquireLeaseAsync();
+        await lease.ReturnAsync();
 
         Assert.Equal(0, metrics.Latest(SmtpMetricNames.PoolHostCooldownActive, "smtp-a.local:2525")!.Value);
         Assert.Equal(1, metrics.Latest(SmtpMetricNames.PoolHostAvailable, "smtp-a.local:2525")!.Value);
-
-        await recoveredLease.ReturnAsync();
     }
 
     [Fact]

@@ -63,5 +63,10 @@ public static class ServiceCollectionExtensions
         {
             throw new ArgumentException("Each configured SMTP host must have Weight greater than zero.", nameof(options));
         }
+
+        if (options.JitterRatio is < 0d or > 1d)
+        {
+            throw new ArgumentException("JitterRatio must be between zero and one.", nameof(options));
+        }
     }
 }

@@ -427,3 +427,6 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Documentation release notes are tracked despite the build-output Release/ pattern
+!docs/release/

@@ -67,6 +67,11 @@ internal sealed class DefaultSmtpErrorClassifier : ISmtpErrorClassifier
                 $"SMTP authentication was rejected with status {(int) exception.StatusCode}.");
         }
 
+        if (exception.ErrorCode == SmtpErrorCode.MessageNotAccepted)
+        {
+            return ClassifyRejectedMessage(exception, stage);
+        }
+
         if (IsRecipientOrSenderRejected(exception.ErrorCode))
         {
             return Create(
@@ -114,6 +119,30 @@ internal sealed class DefaultSmtpErrorClassifier : ISmtpErrorClassifier
             isRetryAllowed: false,
             shouldDiscardConnection: true,
             $"Unexpected SMTP status {statusCode} is treated as a broken session.");
+    }
+
+    private static SmtpFailureClassification ClassifyRejectedMessage(SmtpCommandException exception, SmtpSendStage stage)
+    {
+        // MessageNotAccepted is the server's reply to the completed DATA payload.
+        // The protocol outcome is known (the message was not accepted), so this is
+        // never ambiguous and the session itself remains in a clean state.
+        var statusCode = (int) exception.StatusCode;
+        if (statusCode >= 500)
+        {
+            return Create(
+                SmtpFailureKind.PermanentFailure,
+                stage,
+                isRetryAllowed: false,
+                shouldDiscardConnection: false,
+                $"The SMTP server permanently rejected the message with status {statusCode}.");
+        }
+
+        return Create(
+            SmtpFailureKind.RetryableTemporaryFailure,
+            stage,
+            isRetryAllowed: true,
+            shouldDiscardConnection: false,
+            $"The SMTP server temporarily rejected the message with status {statusCode}.");
     }
 
     private static SmtpFailureClassification ClassifyTransportFailure(SmtpSendStage stage)

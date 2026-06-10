@@ -77,7 +77,9 @@ public sealed class Smtp4DevMultiHostTests
             var failoverSubject = $"mailkit-pooling-failover-{Guid.NewGuid():N}";
             var failoverResult = await failoverSender.SendAsync(CreateMessage(failoverSubject));
 
-            Assert.Equal(2, failoverResult.Attempts);
+            // Host failover now happens inside a single acquire, so the first
+            // attempt is already served by the secondary host.
+            Assert.Equal(1, failoverResult.Attempts);
             Assert.Equal("localhost:2526", failoverResult.EndpointKey);
             Assert.True(await WaitForMessageAsync(SecondaryApiBaseAddress, failoverSubject, TimeSpan.FromSeconds(5)));
         }

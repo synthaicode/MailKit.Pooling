@@ -79,6 +79,20 @@ public sealed class ServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void AddMailKitPooling_Rejects_Out_Of_Range_JitterRatio()
+    {
+        var services = new ServiceCollection();
+
+        var exception = Assert.Throws<ArgumentException>(() => services.AddMailKitPooling(options =>
+        {
+            options.Host = new SmtpHostOptions { Host = "localhost" };
+            options.JitterRatio = 1.5d;
+        }));
+
+        Assert.Contains("JitterRatio", exception.Message);
+    }
+
+    [Fact]
     public void AddMailKitPooling_Rejects_Non_Positive_Host_Weight()
     {
         var services = new ServiceCollection();

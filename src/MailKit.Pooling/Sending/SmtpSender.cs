@@ -1,3 +1,4 @@
+using MailKit.Net.Smtp;
 using PooledMailKit.Abstractions;
 using PooledMailKit.Errors;
 using PooledMailKit.Internal;
@@ -52,7 +53,10 @@ internal sealed class SmtpSender : ISmtpSender
                     options.SmtpSendTimeout,
                     "send",
                     cancellationToken).ConfigureAwait(false);
-                await lease.ReturnAsync(cancellationToken).ConfigureAwait(false);
+
+                // The server accepted the message; lease cleanup must not turn the
+                // accepted send into a reported failure or cancellation.
+                await CompleteLeaseBestEffortAsync(lease, shouldDiscardConnection: false).ConfigureAwait(false);
                 RecordSendDuration(sendStartedAt, clock.UtcNow, lease.EndpointKey);
                 metrics.Record(new SmtpPoolMetricEvent(
                     SmtpMetricNames.SendSuccessCount,
@@ -117,7 +121,7 @@ internal sealed class SmtpSender : ISmtpSender
 
                     if (retryDelay > TimeSpan.Zero)
                     {
-                        await Task.Delay(retryDelay, cancellationToken).ConfigureAwait(false);
+                        await clock.Delay(retryDelay, cancellationToken).ConfigureAwait(false);
                     }
 
                     continue;
@@ -170,16 +174,23 @@ internal sealed class SmtpSender : ISmtpSender
         SmtpConnectionLease lease,
         bool shouldDiscardConnection)
     {
+        var completionTask = shouldDiscardConnection
+            ? lease.InvalidateAsync(CancellationToken.None).AsTask()
+            : lease.ReturnAsync(CancellationToken.None).AsTask();
+
         try
         {
-            var completionTask = shouldDiscardConnection
-                ? lease.InvalidateAsync(CancellationToken.None).AsTask()
-                : lease.ReturnAsync(CancellationToken.None).AsTask();
             await completionTask.WaitAsync(LeaseCleanupTimeout).ConfigureAwait(false);
         }
         catch
         {
             // Preserve the original send outcome even when cleanup is slow or broken.
+            // Observe the abandoned task so a late fault never becomes unobserved.
+            _ = completionTask.ContinueWith(
+                static task => _ = task.Exception,
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
         }
     }
 
@@ -195,8 +206,26 @@ internal sealed class SmtpSender : ISmtpSender
             return stageAware.Stage;
         }
 
+        if (exception is SmtpCommandException commandException)
+        {
+            return ResolveCommandStage(commandException);
+        }
+
         // When SendAsync fails without stage detail, prefer a conservative ambiguity boundary.
         return SmtpSendStage.DataStarted;
+    }
+
+    private static SmtpSendStage ResolveCommandStage(SmtpCommandException exception)
+    {
+        // MailKit reports which SMTP command was rejected, which pins the stage:
+        // MAIL FROM / RCPT TO failures happen before DATA, and MessageNotAccepted
+        // is the server's reply to the completed DATA payload.
+        return exception.ErrorCode switch
+        {
+            SmtpErrorCode.SenderNotAccepted or SmtpErrorCode.RecipientNotAccepted => SmtpSendStage.EnvelopeStarted,
+            SmtpErrorCode.MessageNotAccepted => SmtpSendStage.DataCompleted,
+            _ => SmtpSendStage.DataStarted,
+        };
     }
 
     private static Exception ResolveClassificationTarget(Exception exception)

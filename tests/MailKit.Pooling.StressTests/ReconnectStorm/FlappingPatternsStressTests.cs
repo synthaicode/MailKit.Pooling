@@ -104,6 +104,9 @@ public sealed class FlappingPatternsStressTests
             ConnectTimeout = TimeSpan.FromSeconds(2),
             SmtpSendTimeout = TimeSpan.FromSeconds(5),
             ReconnectCooldown = TimeSpan.FromSeconds(2),
+            // Pin recovery latency to the base cooldown; backoff growth is covered
+            // by deterministic unit tests.
+            MaxReconnectCooldown = TimeSpan.FromSeconds(2),
             RetryBaseDelay = TimeSpan.FromMilliseconds(250),
             MaxRetryAttempts = 0,
             JitterRatio = 0d,
