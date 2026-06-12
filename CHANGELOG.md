@@ -4,10 +4,11 @@ All notable changes to `PooledMailKit` will be documented in this file.
 
 The format is intentionally simple and release-oriented.
 
-## [Unreleased]
+## [0.2.0] - 2026-06-12
 
 Error-policy alignment release, derived from a source-level error-policy
 extraction (inventory, category-by-disposition matrix, contradiction list).
+See `docs/release/0.2.0.md` for details.
 
 ### Changed (breaking)
 

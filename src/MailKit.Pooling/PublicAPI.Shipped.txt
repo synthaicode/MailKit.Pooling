@@ -94,3 +94,4 @@ PooledMailKit.Sending.SmtpSendResult.Attempts.get -> int
 PooledMailKit.Sending.SmtpSendResult.ConnectionId.get -> System.Guid
 PooledMailKit.Sending.SmtpSendResult.EndpointKey.get -> string!
 PooledMailKit.Sending.SmtpSendResult.SmtpSendResult(System.Guid connectionId, string! endpointKey, System.DateTimeOffset acceptedAtUtc, int attempts) -> void
+PooledMailKit.Errors.SmtpFailureKind.Unclassified = 6 -> PooledMailKit.Errors.SmtpFailureKind
