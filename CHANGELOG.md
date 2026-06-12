@@ -25,6 +25,16 @@ See `docs/release/0.2.0.md` for details.
   now consistently throw `ArgumentOutOfRangeException` (previously the DI
   path threw `ArgumentException` for `JitterRatio` and host `Weight`).
 
+### Changed
+
+- The internal `ISmtpClientAdapter.SendAsync` contract now takes
+  `MimeKit.MimeMessage` instead of `object`. The MailKit adapter no longer
+  performs a runtime type check (the previous `ArgumentException` for
+  non-`MimeMessage` payloads is unreachable by design); the constraint is
+  enforced at compile time. `ISmtpClientAdapter` is `internal`, so the
+  public package surface is unchanged, but adapters compiled against the
+  internals via `InternalsVisibleTo` must update their signature.
+
 ### Added
 
 - Eager startup validation for settings that previously failed only at the

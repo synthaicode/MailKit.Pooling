@@ -277,8 +277,8 @@ public sealed class Smtp4DevSmokeTests
             Timeout = TimeSpan.FromSeconds(2),
         };
 
-        var startedAt = DateTimeOffset.UtcNow;
-        while (DateTimeOffset.UtcNow - startedAt < timeout)
+        var stopwatch = Stopwatch.StartNew();
+        while (stopwatch.Elapsed < timeout)
         {
             try
             {
@@ -337,8 +337,8 @@ public sealed class Smtp4DevSmokeTests
             Timeout = TimeSpan.FromSeconds(2),
         };
 
-        var startedAt = DateTimeOffset.UtcNow;
-        while (DateTimeOffset.UtcNow - startedAt < timeout)
+        var stopwatch = Stopwatch.StartNew();
+        while (stopwatch.Elapsed < timeout)
         {
             var page = await httpClient.GetFromJsonAsync<PagedResult<MessageSummary>>(
                 $"/api/Messages?searchTerms={Uri.EscapeDataString(subject)}&pageSize=20").ConfigureAwait(false);
