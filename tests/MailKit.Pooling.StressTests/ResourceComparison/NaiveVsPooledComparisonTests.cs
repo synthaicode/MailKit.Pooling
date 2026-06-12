@@ -64,10 +64,12 @@ public sealed class NaiveVsPooledComparisonTests
                     await client.DisconnectAsync(true, cancellationToken);
                     Interlocked.Increment(ref successes);
                 }
+#pragma warning disable CA1031 // Intentional swallow: the comparison run only counts success/failure totals; individual send faults are expected under stress.
                 catch
                 {
                     Interlocked.Increment(ref failures);
                 }
+#pragma warning restore CA1031
             });
 
         stopwatch.Stop();
@@ -133,10 +135,12 @@ public sealed class NaiveVsPooledComparisonTests
                     await sender.SendAsync(harness.CreateMessage(subject, "pooled body"), cancellationToken);
                     Interlocked.Increment(ref successes);
                 }
+#pragma warning disable CA1031 // Intentional swallow: the comparison run only counts success/failure totals; individual send faults are expected under stress.
                 catch
                 {
                     Interlocked.Increment(ref failures);
                 }
+#pragma warning restore CA1031
             });
 
         stopwatch.Stop();

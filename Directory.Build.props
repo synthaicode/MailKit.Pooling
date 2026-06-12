@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <WarningsAsErrors>CA1031</WarningsAsErrors>
     <WarningsNotAsErrors />
   </PropertyGroup>
 </Project>

@@ -259,6 +259,7 @@ internal sealed class Smtp4DevStressHarness : IAsyncDisposable
                     return;
                 }
             }
+#pragma warning disable CA1031 // Intentional swallow: any probe failure simply means smtp4dev is not reachable yet; the poll loop retries until the timeout.
             catch
             {
                 if (!isAvailable)
@@ -266,6 +267,7 @@ internal sealed class Smtp4DevStressHarness : IAsyncDisposable
                     return;
                 }
             }
+#pragma warning restore CA1031
 
             await Task.Delay(TimeSpan.FromMilliseconds(200)).ConfigureAwait(false);
         }

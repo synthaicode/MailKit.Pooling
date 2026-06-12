@@ -1,0 +1,11 @@
+# Error-policy enforcement for production code.
+#
+# CA1031 (do not catch general exception types) is promoted to a warning and
+# escalated to a build error via <WarningsAsErrors> in Directory.Build.props.
+# An intentional catch-all/swallow must therefore carry an explicit
+#   #pragma warning disable CA1031 // <reason>
+# with the reason on the pragma line, so every swallow site is marked and
+# justified at the point of suppression.
+
+[*.cs]
+dotnet_diagnostic.CA1031.severity = warning

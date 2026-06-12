@@ -35,4 +35,11 @@ public enum SmtpFailureKind
     /// </summary>
     PoolExhausted,
 
+    /// <summary>
+    /// The failure type is outside the known SMTP failure families (likely a
+    /// programming error or a foreign adapter fault). The sender discards the
+    /// connection and rethrows the original exception unchanged instead of
+    /// wrapping it in <see cref="SmtpSendFailedException"/>.
+    /// </summary>
+    Unclassified,
 }

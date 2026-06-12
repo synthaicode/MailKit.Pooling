@@ -1,1 +1,2 @@
 #nullable enable
+PooledMailKit.Errors.SmtpFailureKind.Unclassified = 6 -> PooledMailKit.Errors.SmtpFailureKind

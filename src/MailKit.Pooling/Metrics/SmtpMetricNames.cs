@@ -9,6 +9,7 @@ internal static class SmtpMetricNames
     public const string PoolAcquireWaitTime = "pooledmailkit.pool.acquire.wait_time";
     public const string PoolAcquireExhaustedCount = "pooledmailkit.pool.acquire.exhausted.count";
     public const string PoolLeaseDuration = "pooledmailkit.pool.lease.duration";
+    public const string PoolLeaseReturnIgnoredCount = "pooledmailkit.pool.lease.return_ignored.count";
     public const string PoolConnectionsCreated = "pooledmailkit.pool.connections.created";
     public const string PoolConnectionsDropped = "pooledmailkit.pool.connections.dropped";
     public const string PoolConnectionCreateFailures = "pooledmailkit.pool.connection.create.failures";

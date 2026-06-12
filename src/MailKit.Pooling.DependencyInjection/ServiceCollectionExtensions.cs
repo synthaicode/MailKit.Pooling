@@ -30,7 +30,7 @@ public static class ServiceCollectionExtensions
 
         var options = new SmtpPoolOptions();
         configure(options);
-        Validate(options);
+        SmtpPoolOptionsValidator.Validate(options);
 
         services.AddSingleton(options);
         services.AddSingleton<IClock>(_ => SystemClock.Instance);
@@ -44,29 +44,5 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISmtpSender, SmtpSender>();
 
         return services;
-    }
-
-    private static void Validate(SmtpPoolOptions options)
-    {
-        var hosts = options.GetConfiguredHosts();
-        if (hosts.Count == 0)
-        {
-            throw new ArgumentException("At least one SMTP host must be configured.", nameof(options));
-        }
-
-        if (hosts.Any(host => string.IsNullOrWhiteSpace(host.Host)))
-        {
-            throw new ArgumentException("Each configured SMTP host must include Host.", nameof(options));
-        }
-
-        if (hosts.Any(static host => host.Weight <= 0))
-        {
-            throw new ArgumentException("Each configured SMTP host must have Weight greater than zero.", nameof(options));
-        }
-
-        if (options.JitterRatio is < 0d or > 1d)
-        {
-            throw new ArgumentException("JitterRatio must be between zero and one.", nameof(options));
-        }
     }
 }

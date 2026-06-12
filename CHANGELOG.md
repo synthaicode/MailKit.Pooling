@@ -4,6 +4,52 @@ All notable changes to `PooledMailKit` will be documented in this file.
 
 The format is intentionally simple and release-oriented.
 
+## [Unreleased]
+
+Error-policy alignment release, derived from a source-level error-policy
+extraction (inventory, category-by-disposition matrix, contradiction list).
+
+### Changed (breaking)
+
+- Exception types outside the known SMTP failure families (programming
+  errors, foreign adapter faults) are no longer wrapped in
+  `SmtpSendFailedException` with `ConnectionCorrupted`. The sender still
+  discards the connection and records the classification metric, then
+  rethrows the original exception unchanged. The new classification value is
+  `SmtpFailureKind.Unclassified`. Callers that relied on
+  `SmtpSendFailedException` as the single catch surface must add handling
+  for raw exceptions, which now indicate bugs rather than SMTP outcomes.
+- Configuration validation is unified in one internal validator used by both
+  `AddMailKitPooling` and direct `SmtpPool` construction. Range violations
+  now consistently throw `ArgumentOutOfRangeException` (previously the DI
+  path threw `ArgumentException` for `JitterRatio` and host `Weight`).
+
+### Added
+
+- Eager startup validation for settings that previously failed only at the
+  first connection attempt: unparseable `SecureSocketOptions` names,
+  `Password` missing while `UserName` is set (use an explicit empty string
+  for passwordless authentication), negative `RetryBaseDelay`, and negative
+  `MaxRetryAttempts`.
+- `pooledmailkit.pool.lease.return_ignored.count` metric: a lease return for
+  an unknown connection id is ignored by design (idempotent completion) and
+  is now observable.
+
+### Fixed
+
+- The pool availability signal is now an edge-triggered pulse instead of a
+  counting semaphore. Returns without waiters no longer accumulate stale
+  permits that could wake a later blocked acquirer without a real return
+  event (and the `SemaphoreFullException` guard is gone structurally).
+- A faulting adapter `DisposeAsync` no longer aborts disposal of the
+  remaining pooled connections.
+
+### Tooling
+
+- `CA1031` (catching general exception types) is now enforced as a build
+  error; every intentional catch-all/swallow site carries
+  `#pragma warning disable CA1031` with its justification on the pragma line.
+
 ## [0.1.1] - 2026-06-10
 
 Behavior-correction release. See `docs/release/0.1.1.md` for details.

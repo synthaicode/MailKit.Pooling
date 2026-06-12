@@ -225,6 +225,7 @@ public sealed class Smtp4DevMultiHostTests
                     return;
                 }
             }
+#pragma warning disable CA1031 // Intentional swallow: any probe failure simply means smtp4dev is not reachable yet; the poll loop retries until the timeout.
             catch
             {
                 if (!isAvailable)
@@ -232,6 +233,7 @@ public sealed class Smtp4DevMultiHostTests
                     return;
                 }
             }
+#pragma warning restore CA1031
 
             await Task.Delay(TimeSpan.FromMilliseconds(100)).ConfigureAwait(false);
         }

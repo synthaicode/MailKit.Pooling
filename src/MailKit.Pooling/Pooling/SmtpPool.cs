@@ -17,7 +17,7 @@ internal sealed class SmtpPool : IAsyncDisposable
     private readonly object sync = new();
     private readonly Dictionary<Guid, PooledConnection> connections = new();
     private readonly Queue<Guid> idleConnectionIds = new();
-    private readonly SemaphoreSlim connectionReturnedSignal = new(0);
+    private TaskCompletionSource connectionAvailableSignal = CreateAvailabilitySignal();
     private bool disposed;
     private DateTimeOffset? nextMinPoolRefillAllowedAt;
     private int pendingConnectionCreations;
@@ -33,39 +33,13 @@ internal sealed class SmtpPool : IAsyncDisposable
         this.connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
         this.clock = clock ?? SystemClock.Instance;
         this.metrics = metrics ?? NoOpSmtpPoolMetrics.Instance;
+
+        // The pool is constructible without the DI package, so the shared
+        // rules are enforced here as well as at registration time.
+        SmtpPoolOptionsValidator.Validate(options);
         hostStates = options.GetConfiguredHosts()
             .Select(host => new HostRuntimeState(host))
             .ToArray();
-
-        if (options.MaxPoolSize <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(options.MaxPoolSize), "MaxPoolSize must be greater than zero.");
-        }
-
-        if (options.MinPoolSize < 0 || options.MinPoolSize > options.MaxPoolSize)
-        {
-            throw new ArgumentOutOfRangeException(nameof(options.MinPoolSize), "MinPoolSize must be between zero and MaxPoolSize.");
-        }
-
-        if (options.AcquireTimeout <= TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(nameof(options.AcquireTimeout), "AcquireTimeout must be greater than zero.");
-        }
-
-        if (options.JitterRatio is < 0d or > 1d)
-        {
-            throw new ArgumentOutOfRangeException(nameof(options.JitterRatio), "JitterRatio must be between zero and one.");
-        }
-
-        if (hostStates.Length == 0)
-        {
-            throw new ArgumentException("At least one SMTP host must be configured.", nameof(options));
-        }
-
-        if (hostStates.Any(static state => state.Host.Weight <= 0))
-        {
-            throw new ArgumentOutOfRangeException(nameof(options), "Each configured SMTP host must have Weight greater than zero.");
-        }
     }
 
     public async Task<SmtpConnectionLease> AcquireLeaseAsync(CancellationToken cancellationToken = default)
@@ -83,6 +57,11 @@ internal sealed class SmtpPool : IAsyncDisposable
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+
+                // Observe the availability signal before inspecting pool state
+                // so a return that lands between the check and the wait still
+                // wakes this caller (no lost wake-up, no stale signal).
+                var availabilitySignal = ObserveConnectionAvailability();
                 await DisposeExpiredIdleConnectionsAsync(cancellationToken).ConfigureAwait(false);
 
                 var now = clock.UtcNow;
@@ -256,7 +235,7 @@ internal sealed class SmtpPool : IAsyncDisposable
                 }
 
                 var nextDelay = ComputeWaitDuration(clock.UtcNow, deadline);
-                await WaitForConnectionAvailabilityAsync(nextDelay, cancellationToken).ConfigureAwait(false);
+                await WaitForConnectionAvailabilityAsync(nextDelay, availabilitySignal, cancellationToken).ConfigureAwait(false);
             }
         }
         finally
@@ -311,26 +290,31 @@ internal sealed class SmtpPool : IAsyncDisposable
             await DisposeConnectionAsync(connection, CancellationToken.None, "shutdown").ConfigureAwait(false);
         }
 
-        WakeWaitingCallers();
-        connectionReturnedSignal.Dispose();
+        // Wake every blocked acquirer; the next loop iteration surfaces
+        // ObjectDisposedException(SmtpPool).
+        SignalConnectionAvailable();
         RecordCurrentState();
     }
 
-    private void WakeWaitingCallers()
+    private static TaskCompletionSource CreateAvailabilitySignal()
     {
-        var waiters = Volatile.Read(ref waitingCallers);
-        if (waiters <= 0)
-        {
-            return;
-        }
+        return new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
 
-        try
-        {
-            connectionReturnedSignal.Release(waiters);
-        }
-        catch (SemaphoreFullException)
-        {
-        }
+    // Edge-triggered pulse: wakes exactly the callers that observed the
+    // current signal before this call. A pulse with no observers leaves no
+    // stale state behind, because the next observer waits on a fresh signal —
+    // unlike a counting semaphore, where a release without a waiter leaves a
+    // stale permit that wakes a later acquirer without a real return event.
+    private void SignalConnectionAvailable()
+    {
+        var completedSignal = Interlocked.Exchange(ref connectionAvailableSignal, CreateAvailabilitySignal());
+        completedSignal.TrySetResult();
+    }
+
+    private Task ObserveConnectionAvailability()
+    {
+        return Volatile.Read(ref connectionAvailableSignal).Task;
     }
 
     internal async ValueTask ReturnLeaseAsync(
@@ -341,34 +325,50 @@ internal sealed class SmtpPool : IAsyncDisposable
     {
         PooledConnection? connectionToDispose = null;
         string? endpointKey = null;
+        var unknownReturn = false;
 
         lock (sync)
         {
             if (!connections.TryGetValue(connectionId, out var connection))
             {
-                return;
-            }
-
-            endpointKey = connection.HostState.EndpointKey;
-            connection.IsLeased = false;
-
-            if (disposed || !isReusable || !connection.Client.IsConnected || !connection.Client.IsAuthenticated)
-            {
-                // A discarded lease reflects a message-level or connection-level failure.
-                // Host reconnect cooldown is reserved for connection creation failures.
-                connections.Remove(connectionId);
-                if (!disposed && connections.Count + pendingConnectionCreations < options.MinPoolSize)
-                {
-                    ScheduleMinPoolRefill();
-                }
-                connectionToDispose = connection;
+                // Unknown or already-removed ids are ignored by design: lease
+                // completion is idempotent (double return, return after the
+                // pool dropped the connection). The metric below keeps
+                // unexpected foreign returns observable.
+                unknownReturn = true;
             }
             else
             {
-                connection.LastReturnedAt = clock.UtcNow;
-                idleConnectionIds.Enqueue(connectionId);
-                connectionReturnedSignal.Release();
+                endpointKey = connection.HostState.EndpointKey;
+                connection.IsLeased = false;
+
+                if (disposed || !isReusable || !connection.Client.IsConnected || !connection.Client.IsAuthenticated)
+                {
+                    // A discarded lease reflects a message-level or connection-level failure.
+                    // Host reconnect cooldown is reserved for connection creation failures.
+                    connections.Remove(connectionId);
+                    if (!disposed && connections.Count + pendingConnectionCreations < options.MinPoolSize)
+                    {
+                        ScheduleMinPoolRefill();
+                    }
+                    connectionToDispose = connection;
+                }
+                else
+                {
+                    connection.LastReturnedAt = clock.UtcNow;
+                    idleConnectionIds.Enqueue(connectionId);
+                    SignalConnectionAvailable();
+                }
             }
+        }
+
+        if (unknownReturn)
+        {
+            metrics.Record(new SmtpPoolMetricEvent(
+                SmtpMetricNames.PoolLeaseReturnIgnoredCount,
+                SmtpMetricInstrumentKind.Counter,
+                1));
+            return;
         }
 
         if (connectionToDispose is not null)
@@ -394,11 +394,12 @@ internal sealed class SmtpPool : IAsyncDisposable
         {
             throw;
         }
+#pragma warning disable CA1031 // Intentional swallow: warm refill is best-effort on the acquire and return paths.
         catch
         {
-            // Warm refill is best-effort on the acquire and return paths. Creation
-            // failures already recorded metrics and applied the host cooldown.
+            // Creation failures already recorded metrics and applied the host cooldown.
         }
+#pragma warning restore CA1031
     }
 
     private async Task EnsureMinimumPoolSizeAsync(CancellationToken cancellationToken)
@@ -492,6 +493,7 @@ internal sealed class SmtpPool : IAsyncDisposable
             await connection.Client.NoOpAsync(cancellationToken).ConfigureAwait(false);
             return true;
         }
+#pragma warning disable CA1031 // Intentional absorb: any keepalive failure means the idle connection is dropped and the acquire loop continues.
         catch
         {
             metrics.Record(new SmtpPoolMetricEvent(
@@ -508,6 +510,7 @@ internal sealed class SmtpPool : IAsyncDisposable
             await ReturnLeaseAsync(connection.Id, isReusable: false, clock.UtcNow, cancellationToken).ConfigureAwait(false);
             return false;
         }
+#pragma warning restore CA1031
     }
 
     private bool IsConnectionUnusable(PooledConnection connection)
@@ -619,33 +622,25 @@ internal sealed class SmtpPool : IAsyncDisposable
         return cooldownWait < remaining ? cooldownWait : remaining;
     }
 
-    private async Task WaitForConnectionAvailabilityAsync(TimeSpan nextDelay, CancellationToken cancellationToken)
+    private async Task WaitForConnectionAvailabilityAsync(
+        TimeSpan nextDelay,
+        Task availabilitySignal,
+        CancellationToken cancellationToken)
     {
         using var waitCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var timerTask = clock.Delay(nextDelay, waitCts.Token);
-        Task returnedSignalTask;
 
-        try
-        {
-            returnedSignalTask = connectionReturnedSignal.WaitAsync(waitCts.Token);
-        }
-        catch (ObjectDisposedException)
-        {
-            // The pool was disposed while this caller was waiting; the next loop
-            // iteration surfaces ObjectDisposedException(SmtpPool).
-            await waitCts.CancelAsync().ConfigureAwait(false);
-            return;
-        }
-
-        await Task.WhenAny(timerTask, returnedSignalTask).ConfigureAwait(false);
+        await Task.WhenAny(timerTask, availabilitySignal).ConfigureAwait(false);
         await waitCts.CancelAsync().ConfigureAwait(false);
 
         try
         {
-            await Task.WhenAll(timerTask, returnedSignalTask).ConfigureAwait(false);
+            await timerTask.ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (waitCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
+            // Only the internal wake-up cancellation of the timer is absorbed;
+            // caller cancellation propagates.
         }
     }
 
@@ -677,11 +672,22 @@ internal sealed class SmtpPool : IAsyncDisposable
                 await connection.Client.DisconnectAsync(quit: false, cancellationToken).ConfigureAwait(false);
             }
         }
+#pragma warning disable CA1031 // Intentional swallow: disconnect is a best-effort courtesy close; the connection is dropped either way.
         catch
         {
         }
+#pragma warning restore CA1031
 
-        await connection.Client.DisposeAsync().ConfigureAwait(false);
+        try
+        {
+            await connection.Client.DisposeAsync().ConfigureAwait(false);
+        }
+#pragma warning disable CA1031 // Intentional swallow: one faulting adapter dispose must not abort disposal of the remaining pooled connections.
+        catch
+        {
+        }
+#pragma warning restore CA1031
+
         metrics.Record(new SmtpPoolMetricEvent(
             SmtpMetricNames.PoolConnectionsDropped,
             SmtpMetricInstrumentKind.Counter,

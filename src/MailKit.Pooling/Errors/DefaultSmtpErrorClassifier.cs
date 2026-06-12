@@ -47,12 +47,15 @@ internal sealed class DefaultSmtpErrorClassifier : ISmtpErrorClassifier
             return ClassifyProtocolFailure(stage);
         }
 
+        // Exception types outside the known SMTP failure families are likely
+        // programming errors; they must surface raw instead of masquerading as
+        // an operational send failure. The connection is still discarded.
         return Create(
-            SmtpFailureKind.ConnectionCorrupted,
+            SmtpFailureKind.Unclassified,
             stage,
             isRetryAllowed: false,
             shouldDiscardConnection: true,
-            $"Unhandled SMTP failure type '{exception.GetType().Name}' is treated as a broken connection.");
+            $"Failure type '{exception.GetType().Name}' is not a known SMTP failure family; the original exception is rethrown.");
     }
 
     private static SmtpFailureClassification Classify(SmtpCommandException exception, SmtpSendStage stage)

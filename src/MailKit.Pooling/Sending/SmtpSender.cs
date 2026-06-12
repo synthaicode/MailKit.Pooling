@@ -104,6 +104,14 @@ internal sealed class SmtpSender : ISmtpSender
                     }
                 }
 
+                if (classification.Kind == SmtpFailureKind.Unclassified)
+                {
+                    // Not an SMTP outcome: bug-class and foreign exceptions
+                    // surface raw after pool hygiene instead of masquerading
+                    // as a classified send failure.
+                    throw;
+                }
+
                 if (ShouldRetry(classification, attempts))
                 {
                     metrics.Record(new SmtpPoolMetricEvent(
@@ -182,6 +190,7 @@ internal sealed class SmtpSender : ISmtpSender
         {
             await completionTask.WaitAsync(LeaseCleanupTimeout).ConfigureAwait(false);
         }
+#pragma warning disable CA1031 // Intentional swallow: lease cleanup must never turn an already-determined send outcome into a different failure.
         catch
         {
             // Preserve the original send outcome even when cleanup is slow or broken.
@@ -192,6 +201,7 @@ internal sealed class SmtpSender : ISmtpSender
                 TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
                 TaskScheduler.Default);
         }
+#pragma warning restore CA1031
     }
 
     private static SmtpSendStage ResolveStage(Exception exception, bool failedBeforeLease)

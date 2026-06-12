@@ -449,6 +449,33 @@ public sealed class SmtpSenderTests
     }
 
     [Fact]
+    public async Task SendAsync_Rethrows_Unclassified_Exception_Raw_After_Discarding_Connection()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        var metrics = new RecordingSmtpPoolMetrics();
+        var client = new FakeSmtpClientAdapter
+        {
+            OnSendAsync = static (_, _) => Task.FromException(
+                new InvalidOperationException("bug-class failure")),
+        };
+        factory.Enqueue(client);
+
+        var options = CreateOptions(reconnectCooldown: TimeSpan.Zero, maxRetryAttempts: 3);
+        await using var pool = new SmtpPool(options, factory, clock);
+        var sender = new SmtpSender(pool, new DefaultSmtpErrorClassifier(), options, clock, metrics);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => sender.SendAsync(CreateMessage()));
+
+        Assert.Equal("bug-class failure", exception.Message);
+        Assert.Equal(1, client.DisposeCalls);
+        Assert.Equal(1, client.SendCalls);
+        Assert.Equal(1, metrics.Count(SmtpMetricNames.SendClassificationCount));
+        Assert.Equal(0, metrics.Count(SmtpMetricNames.SendFailedCount));
+        Assert.Equal(0, metrics.Count(SmtpMetricNames.SendRetryCount));
+    }
+
+    [Fact]
     public async Task SendAsync_Reports_Success_When_Lease_Cleanup_Refill_Fails()
     {
         var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));

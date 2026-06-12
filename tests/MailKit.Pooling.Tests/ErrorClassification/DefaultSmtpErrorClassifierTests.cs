@@ -85,6 +85,18 @@ public sealed class DefaultSmtpErrorClassifierTests
     }
 
     [Fact]
+    public void Unknown_Exception_Family_Is_Unclassified_And_Discards_Connection()
+    {
+        var result = classifier.Classify(
+            new InvalidOperationException("bug-class failure"),
+            SmtpSendStage.DataStarted);
+
+        Assert.Equal(SmtpFailureKind.Unclassified, result.Kind);
+        Assert.False(result.IsRetryAllowed);
+        Assert.True(result.ShouldDiscardConnection);
+    }
+
+    [Fact]
     public void Permanent_Rejection_Of_Data_Payload_Is_Definitive_And_Not_Retryable()
     {
         var exception = new global::MailKit.Net.Smtp.SmtpCommandException(

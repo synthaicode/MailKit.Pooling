@@ -83,7 +83,7 @@ public sealed class ServiceCollectionExtensionsTests
     {
         var services = new ServiceCollection();
 
-        var exception = Assert.Throws<ArgumentException>(() => services.AddMailKitPooling(options =>
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => services.AddMailKitPooling(options =>
         {
             options.Host = new SmtpHostOptions { Host = "localhost" };
             options.JitterRatio = 1.5d;
@@ -97,7 +97,7 @@ public sealed class ServiceCollectionExtensionsTests
     {
         var services = new ServiceCollection();
 
-        var exception = Assert.Throws<ArgumentException>(() => services.AddMailKitPooling(options =>
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => services.AddMailKitPooling(options =>
         {
             options.Hosts =
             [
@@ -106,5 +106,69 @@ public sealed class ServiceCollectionExtensionsTests
         }));
 
         Assert.Contains("Weight greater than zero", exception.Message);
+    }
+
+    [Fact]
+    public void AddMailKitPooling_Rejects_Unparseable_SecureSocketOptions_At_Registration()
+    {
+        var services = new ServiceCollection();
+
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => services.AddMailKitPooling(options =>
+        {
+            options.Host = new SmtpHostOptions
+            {
+                Host = "localhost",
+                SecureSocketOptions = "StartTlsWhenAvailble",
+            };
+        }));
+
+        Assert.Contains("SecureSocketOptions", exception.Message);
+    }
+
+    [Fact]
+    public void AddMailKitPooling_Rejects_Missing_Password_When_UserName_Is_Set()
+    {
+        var services = new ServiceCollection();
+
+        var exception = Assert.Throws<ArgumentException>(() => services.AddMailKitPooling(options =>
+        {
+            options.Host = new SmtpHostOptions
+            {
+                Host = "localhost",
+                UserName = "mailer",
+            };
+        }));
+
+        Assert.Contains("Password", exception.Message);
+    }
+
+    [Fact]
+    public void AddMailKitPooling_Accepts_Explicit_Empty_Password_With_UserName()
+    {
+        var services = new ServiceCollection();
+
+        services.AddMailKitPooling(options =>
+        {
+            options.Host = new SmtpHostOptions
+            {
+                Host = "localhost",
+                UserName = "mailer",
+                Password = "",
+            };
+        });
+    }
+
+    [Fact]
+    public void AddMailKitPooling_Rejects_Negative_RetryBaseDelay_At_Registration()
+    {
+        var services = new ServiceCollection();
+
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => services.AddMailKitPooling(options =>
+        {
+            options.Host = new SmtpHostOptions { Host = "localhost" };
+            options.RetryBaseDelay = TimeSpan.FromSeconds(-1);
+        }));
+
+        Assert.Contains("RetryBaseDelay", exception.Message);
     }
 }

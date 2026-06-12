@@ -224,7 +224,7 @@ public sealed class PoolStateTransitionTests
     }
 
     [Fact]
-    public async Task Blocked_Acquire_Busy_Spins_When_Stale_Return_Signal_Remains()
+    public async Task Blocked_Acquire_Does_Not_Wake_From_Stale_Return_Signals()
     {
         var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
         var factory = new FakeSmtpConnectionFactory();
@@ -235,9 +235,11 @@ public sealed class PoolStateTransitionTests
             factory,
             clock);
 
+        // Each return without a waiter pulses the availability signal; none of
+        // these pulses may persist as a stale wake-up for a later acquirer.
         var lease = await pool.AcquireLeaseAsync();
-        const int stalePermitCount = 5;
-        for (var i = 0; i < stalePermitCount; i++)
+        const int returnsWithoutWaiters = 5;
+        for (var i = 0; i < returnsWithoutWaiters; i++)
         {
             await lease.ReturnAsync();
             lease = await pool.AcquireLeaseAsync();
@@ -248,14 +250,57 @@ public sealed class PoolStateTransitionTests
 
         Assert.True(
             SpinWait.SpinUntil(
-                () => clock.DelayCallCount >= delayCallsBeforeBlockedAcquire + stalePermitCount,
+                () => clock.DelayCallCount >= delayCallsBeforeBlockedAcquire + 1,
                 TimeSpan.FromSeconds(1)),
-            "Expected blocked acquire to repeatedly recreate delay waits after consuming accumulated stale return signals.");
+            "Expected the blocked acquire to park on a timer wait.");
+        await Task.Delay(100);
+        Assert.Equal(delayCallsBeforeBlockedAcquire + 1, clock.DelayCallCount);
         Assert.False(blockedAcquire.IsCompleted);
 
         await lease.ReturnAsync();
         var resumedLease = await blockedAcquire;
         await resumedLease.ReturnAsync();
+    }
+
+    [Fact]
+    public async Task DisposeAsync_Wakes_Blocked_Acquire_With_ObjectDisposedException()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        factory.Enqueue(new FakeSmtpClientAdapter());
+
+        var pool = new SmtpPool(
+            CreateOptions(maxPoolSize: 1, acquireTimeout: TimeSpan.FromMinutes(1)),
+            factory,
+            clock);
+
+        var lease = await pool.AcquireLeaseAsync();
+        var blockedAcquire = pool.AcquireLeaseAsync();
+
+        Assert.True(
+            SpinWait.SpinUntil(() => pool.GetSnapshot().WaitingCallers == 1, TimeSpan.FromSeconds(1)),
+            "Expected the second acquire to block.");
+
+        await pool.DisposeAsync();
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(async () => await blockedAcquire);
+        await lease.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Unknown_Lease_Return_Is_Ignored_And_Recorded()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        var metrics = new RecordingSmtpPoolMetrics();
+        factory.Enqueue(new FakeSmtpClientAdapter());
+
+        await using var pool = new SmtpPool(CreateOptions(), factory, clock, metrics);
+
+        await pool.ReturnLeaseAsync(Guid.NewGuid(), isReusable: true, clock.UtcNow, CancellationToken.None);
+
+        Assert.Equal(1, metrics.Count(SmtpMetricNames.PoolLeaseReturnIgnoredCount));
+        Assert.Equal(0, pool.GetSnapshot().TotalConnections);
     }
 
     [Fact]
