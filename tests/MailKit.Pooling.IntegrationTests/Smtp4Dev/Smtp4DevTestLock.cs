@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 
 namespace PooledMailKit.IntegrationTests.Smtp4Dev;
@@ -48,8 +49,8 @@ internal sealed class Smtp4DevTestLock : IAsyncDisposable
 
     private static async Task<FileStream> AcquireFileLockAsync(TimeSpan timeout)
     {
-        var startedAt = DateTimeOffset.UtcNow;
-        while (DateTimeOffset.UtcNow - startedAt < timeout)
+        var stopwatch = Stopwatch.StartNew();
+        while (stopwatch.Elapsed < timeout)
         {
             try
             {

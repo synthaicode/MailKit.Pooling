@@ -18,7 +18,9 @@ internal sealed class SmtpPool : IAsyncDisposable
     private readonly Dictionary<Guid, PooledConnection> connections = new();
     private readonly Queue<Guid> idleConnectionIds = new();
     private TaskCompletionSource connectionAvailableSignal = CreateAvailabilitySignal();
-    private bool disposed;
+    // Written only under `sync`; volatile so the lock-free read in
+    // ThrowIfDisposed observes the latest value.
+    private volatile bool disposed;
     private DateTimeOffset? nextMinPoolRefillAllowedAt;
     private int pendingConnectionCreations;
     private int waitingCallers;
@@ -507,7 +509,10 @@ internal sealed class SmtpPool : IAsyncDisposable
                 SmtpMetricInstrumentKind.Counter,
                 1,
                 connection.HostState.EndpointKey));
-            await ReturnLeaseAsync(connection.Id, isReusable: false, clock.UtcNow, cancellationToken).ConfigureAwait(false);
+            // The drop and the min-pool refill are pool-internal cleanup; they
+            // must complete even when the caller's token is already cancelled,
+            // matching the lease's own DisposeAsync behavior.
+            await ReturnLeaseAsync(connection.Id, isReusable: false, clock.UtcNow, CancellationToken.None).ConfigureAwait(false);
             return false;
         }
 #pragma warning restore CA1031

@@ -184,9 +184,14 @@ public sealed class PoolStateTransitionTests
             clock);
 
         var firstLease = await pool.AcquireLeaseAsync();
+        var delayCallsBeforeBlockedAcquire = clock.DelayCallCount;
         var blockedAcquire = pool.AcquireLeaseAsync();
 
-        await Task.Yield();
+        Assert.True(
+            SpinWait.SpinUntil(
+                () => clock.DelayCallCount >= delayCallsBeforeBlockedAcquire + 1,
+                TimeSpan.FromSeconds(1)),
+            "Expected the blocked acquire to park on a timer wait.");
         clock.Advance(TimeSpan.FromSeconds(10));
 
         var exception = await Assert.ThrowsAsync<SmtpPoolExhaustedException>(async () => await blockedAcquire);
@@ -210,7 +215,9 @@ public sealed class PoolStateTransitionTests
         var firstLease = await pool.AcquireLeaseAsync();
         var blockedAcquire = pool.AcquireLeaseAsync();
 
-        await Task.Yield();
+        Assert.True(
+            SpinWait.SpinUntil(() => pool.GetSnapshot().WaitingCallers == 1, TimeSpan.FromSeconds(1)),
+            "Expected the second acquire to register as a waiting caller.");
         var waitingSnapshot = pool.GetSnapshot();
 
         Assert.Equal(1, waitingSnapshot.WaitingCallers);
@@ -718,6 +725,7 @@ public sealed class PoolStateTransitionTests
     [Fact]
     public async Task IdleTimeout_Discards_Expired_Idle_Connection_Before_Reuse()
     {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
         var factory = new FakeSmtpConnectionFactory();
         var expiredClient = new FakeSmtpClientAdapter();
         var replacementClient = new FakeSmtpClientAdapter();
@@ -726,15 +734,16 @@ public sealed class PoolStateTransitionTests
 
         await using var pool = new SmtpPool(
             CreateOptions(
-                idleTimeout: TimeSpan.FromMilliseconds(50),
+                idleTimeout: TimeSpan.FromSeconds(5),
                 reconnectCooldown: TimeSpan.Zero,
                 keepAliveInterval: TimeSpan.FromMinutes(1)),
-            factory);
+            factory,
+            clock);
 
         var lease = await pool.AcquireLeaseAsync();
         await lease.ReturnAsync();
 
-        await Task.Delay(100);
+        clock.Advance(TimeSpan.FromSeconds(6));
         var replacementLease = await pool.AcquireLeaseAsync();
 
         Assert.Equal(0, expiredClient.NoOpCalls);
@@ -742,6 +751,46 @@ public sealed class PoolStateTransitionTests
         Assert.Same(replacementClient, replacementLease.Client);
 
         await replacementLease.ReturnAsync();
+    }
+
+    [Fact]
+    public async Task KeepAlive_Failure_Cleanup_Completes_When_Caller_Token_Is_Cancelled()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        var staleClient = new FakeSmtpClientAdapter();
+        var replacementClient = new FakeSmtpClientAdapter();
+        factory.Enqueue(staleClient);
+        factory.Enqueue(replacementClient);
+
+        await using var pool = new SmtpPool(
+            CreateOptions(maxPoolSize: 2, minPoolSize: 1, reconnectCooldown: TimeSpan.Zero),
+            factory,
+            clock);
+
+        var lease = await pool.AcquireLeaseAsync();
+        await lease.ReturnAsync();
+
+        // The keepalive probe cancels the caller's token and then fails, so the
+        // drop-and-refill cleanup runs while the caller is already cancelled.
+        using var cts = new CancellationTokenSource();
+        staleClient.OnNoOpAsync = _ =>
+        {
+            cts.Cancel();
+            throw new InvalidOperationException("keepalive failed");
+        };
+
+        clock.Advance(TimeSpan.FromSeconds(61));
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            async () => await pool.AcquireLeaseAsync(cts.Token));
+
+        Assert.Equal(1, staleClient.DisposeCalls);
+        Assert.Equal(2, factory.CreateCalls);
+
+        var snapshot = pool.GetSnapshot();
+        Assert.Equal(1, snapshot.TotalConnections);
+        Assert.Equal(1, snapshot.IdleConnections);
     }
 
     [Fact]

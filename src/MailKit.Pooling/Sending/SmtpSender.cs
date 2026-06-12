@@ -195,6 +195,8 @@ internal sealed class SmtpSender : ISmtpSender
         {
             // Preserve the original send outcome even when cleanup is slow or broken.
             // Observe the abandoned task so a late fault never becomes unobserved.
+            // The fault detail is intentionally dropped: the send outcome is already
+            // decided and this library exposes no logging channel for it.
             _ = completionTask.ContinueWith(
                 static task => _ = task.Exception,
                 CancellationToken.None,

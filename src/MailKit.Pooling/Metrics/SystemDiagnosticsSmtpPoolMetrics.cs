@@ -12,7 +12,7 @@ internal sealed class SystemDiagnosticsSmtpPoolMetrics : ISmtpPoolMetrics, IDisp
     private readonly Dictionary<string, Counter<double>> counters = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Histogram<double>> histograms = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ObservableGauge<double>> gauges = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, double> gaugeValues = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Dictionary<string, double>> gaugeValues = new(StringComparer.Ordinal);
 
     public void Record(SmtpPoolMetricEvent metricEvent)
     {
@@ -56,7 +56,13 @@ internal sealed class SystemDiagnosticsSmtpPoolMetrics : ISmtpPoolMetrics, IDisp
                             $"PooledMailKit metric '{metricEvent.Name}'.")));
             }
 
-            gaugeValues[BuildGaugeKey(metricEvent.Name, metricEvent.SmtpHost)] = metricEvent.Value;
+            if (!gaugeValues.TryGetValue(metricEvent.Name, out var hostValues))
+            {
+                hostValues = new Dictionary<string, double>(StringComparer.Ordinal);
+                gaugeValues.Add(metricEvent.Name, hostValues);
+            }
+
+            hostValues[metricEvent.SmtpHost ?? string.Empty] = metricEvent.Value;
         }
     }
 
@@ -95,22 +101,20 @@ internal sealed class SystemDiagnosticsSmtpPoolMetrics : ISmtpPoolMetrics, IDisp
     private IEnumerable<Measurement<double>> ObserveGauge(string metricName)
     {
         List<Measurement<double>> measurements = [];
-        var prefix = $"{metricName}|";
 
         lock (sync)
         {
-            foreach (var pair in gaugeValues)
+            if (!gaugeValues.TryGetValue(metricName, out var hostValues))
             {
-                if (!pair.Key.StartsWith(prefix, StringComparison.Ordinal))
-                {
-                    continue;
-                }
+                return measurements;
+            }
 
+            foreach (var pair in hostValues)
+            {
                 var tags = new TagList();
-                var smtpHost = ExtractGaugeHost(pair.Key);
-                if (!string.IsNullOrWhiteSpace(smtpHost))
+                if (!string.IsNullOrWhiteSpace(pair.Key))
                 {
-                    tags.Add("smtp.host", smtpHost);
+                    tags.Add("smtp.host", pair.Key);
                 }
 
                 measurements.Add(new Measurement<double>(pair.Value, tags));
@@ -146,20 +150,4 @@ internal sealed class SystemDiagnosticsSmtpPoolMetrics : ISmtpPoolMetrics, IDisp
         return tags;
     }
 
-    private static string BuildGaugeKey(string metricName, string? smtpHost)
-    {
-        return $"{metricName}|{smtpHost ?? string.Empty}";
-    }
-
-    private static string? ExtractGaugeHost(string gaugeKey)
-    {
-        var separatorIndex = gaugeKey.IndexOf('|', StringComparison.Ordinal);
-        if (separatorIndex < 0 || separatorIndex == gaugeKey.Length - 1)
-        {
-            return null;
-        }
-
-        var value = gaugeKey[(separatorIndex + 1)..];
-        return string.IsNullOrWhiteSpace(value) ? null : value;
-    }
 }

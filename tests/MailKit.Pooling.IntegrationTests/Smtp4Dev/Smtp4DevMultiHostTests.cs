@@ -194,8 +194,8 @@ public sealed class Smtp4DevMultiHostTests
     private static async Task<bool> WaitForMessageAsync(Uri apiBaseAddress, string subject, TimeSpan timeout)
     {
         using var httpClient = CreateHttpClient(apiBaseAddress);
-        var startedAt = DateTimeOffset.UtcNow;
-        while (DateTimeOffset.UtcNow - startedAt < timeout)
+        var stopwatch = Stopwatch.StartNew();
+        while (stopwatch.Elapsed < timeout)
         {
             var page = await httpClient.GetFromJsonAsync<PagedResult<MessageSummary>>(
                 $"/api/Messages?searchTerms={Uri.EscapeDataString(subject)}&pageSize=20").ConfigureAwait(false);
@@ -214,8 +214,8 @@ public sealed class Smtp4DevMultiHostTests
     private static async Task WaitForAvailabilityAsync(Uri apiBaseAddress, bool isAvailable, TimeSpan timeout)
     {
         using var httpClient = CreateHttpClient(apiBaseAddress);
-        var startedAt = DateTimeOffset.UtcNow;
-        while (DateTimeOffset.UtcNow - startedAt < timeout)
+        var stopwatch = Stopwatch.StartNew();
+        while (stopwatch.Elapsed < timeout)
         {
             try
             {
