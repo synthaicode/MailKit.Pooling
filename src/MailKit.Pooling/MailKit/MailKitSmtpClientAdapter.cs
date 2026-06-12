@@ -43,16 +43,9 @@ internal sealed class MailKitSmtpClientAdapter : ISmtpClientAdapter
         return client.NoOpAsync(cancellationToken);
     }
 
-    public Task SendAsync(object message, CancellationToken cancellationToken)
+    public Task SendAsync(MimeMessage message, CancellationToken cancellationToken)
     {
-        if (message is not MimeMessage mimeMessage)
-        {
-            throw new ArgumentException(
-                $"The MailKit adapter expects {nameof(MimeMessage)} instances.",
-                nameof(message));
-        }
-
-        return client.SendAsync(mimeMessage, cancellationToken);
+        return client.SendAsync(message, cancellationToken);
     }
 
     public Task DisconnectAsync(bool quit, CancellationToken cancellationToken)
@@ -62,6 +55,8 @@ internal sealed class MailKitSmtpClientAdapter : ISmtpClientAdapter
 
     public ValueTask DisposeAsync()
     {
+        // MailKit's SmtpClient (4.16.0) only offers synchronous Dispose; the
+        // adapter wraps it to satisfy the pool's IAsyncDisposable contract.
         client.Dispose();
         return ValueTask.CompletedTask;
     }

@@ -1,3 +1,4 @@
+using MimeKit;
 using PooledMailKit.Abstractions;
 
 namespace PooledMailKit.Tests.TestDoubles;
@@ -6,7 +7,7 @@ internal sealed class FakeSmtpClientAdapter : ISmtpClientAdapter
 {
     public Func<CancellationToken, Task>? OnNoOpAsync { get; set; }
 
-    public Func<object, CancellationToken, Task>? OnSendAsync { get; set; }
+    public Func<MimeMessage, CancellationToken, Task>? OnSendAsync { get; set; }
 
     public Func<bool, CancellationToken, Task>? OnDisconnectAsync { get; set; }
 
@@ -40,7 +41,7 @@ internal sealed class FakeSmtpClientAdapter : ISmtpClientAdapter
         return OnNoOpAsync?.Invoke(cancellationToken) ?? Task.CompletedTask;
     }
 
-    public Task SendAsync(object message, CancellationToken cancellationToken)
+    public Task SendAsync(MimeMessage message, CancellationToken cancellationToken)
     {
         SendCalls++;
         return OnSendAsync?.Invoke(message, cancellationToken) ?? Task.CompletedTask;
