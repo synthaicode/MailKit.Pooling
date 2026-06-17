@@ -1,0 +1,38 @@
+{
+  "schema": "xrefkit.graph-baseline/v1",
+  "repository": "MailKit.Pooling",
+  "accepted_at": "2026-06-17",
+  "based_on_profile_version": 1,
+  "scope": "MailKit.Pooling.sln (6 projects; net8.0 + net10.0 multi-target)",
+  "graph_summary": {
+    "nodes": 910,
+    "edges": 2011,
+    "name_nodes": 26
+  },
+  "accepted_hubs": {
+    "M:PooledMailKit.Pooling.SmtpPool.#ctor(PooledMailKit.Options.SmtpPoolOptions,PooledMailKit.Abstractions.ISmtpConnectionFactory,PooledMailKit.Abstractions.IClock,PooledMailKit.Abstractions.ISmtpPoolMetrics)": { "fan_in": 57, "fan_out": 2 },
+    "M:PooledMailKit.Pooling.SmtpPool.AcquireLeaseAsync(System.Threading.CancellationToken)": { "fan_in": 31, "fan_out": 20 }
+  },
+  "accepted_test_fixtures": {
+    "M:PooledMailKit.Tests.TestDoubles.FakeClock.#ctor(System.DateTimeOffset)": { "fan_in": 44 },
+    "M:PooledMailKit.Tests.TestDoubles.FakeSmtpConnectionFactory.#ctor": { "fan_in": 44 },
+    "M:PooledMailKit.Tests.TestDoubles.FakeSmtpClientAdapter.#ctor": { "fan_in": 44 }
+  },
+  "accepted_name_coupling": {
+    "environment_literal": { "localhost": 8, "docker": 6, "smtp-a.local:2525": 6 }
+  },
+  "accepted_external_boundary": {
+    "M:PooledMailKit.DependencyInjection.ServiceCollectionExtensions.AddMailKitPooling(Microsoft.Extensions.DependencyInjection.IServiceCollection,System.Action{PooledMailKit.Options.SmtpPoolOptions})": 44,
+    "M:PooledMailKit.Sending.SmtpSender.SendAsync(MimeKit.MimeMessage,System.Threading.CancellationToken)": 36
+  },
+  "drift_check": {
+    "purpose": "Re-extract on change and diff against this baseline. Drift is a REVIEW SIGNAL, not an auto-fail.",
+    "signals": [
+      "new hub: a non-test symbol crossing fan_in >= 20 not listed in accepted_hubs",
+      "removed hub: an accepted hub dropping below fan_in 20",
+      "hub delta: accepted hub fan_in changing by > 50%",
+      "new name coupling: a non-environment shared name with members >= 6 (would contradict the low-coupling profile)",
+      "size drift: node or edge count changing by > 10%"
+    ]
+  }
+}
