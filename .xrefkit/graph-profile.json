@@ -4,12 +4,20 @@
   "profile_version": 1,
   "generated_at": "2026-06-17",
   "key_scheme": "roslyn-docid",
+  "extractor": { "name": "dotnet_structure_graph", "version": "v1" },
   "scope": "MailKit.Pooling.sln (6 projects; net8.0 + net10.0 multi-target)",
   "graph_summary": {
     "nodes": 910,
     "edges": 2011,
     "name_nodes": 26
   },
+  "regeneration_triggers": [
+    "extractor_version_changed",
+    "large_refactoring",
+    "options_schema_changed",
+    "di_registration_changed",
+    "mailkit_send_boundary_changed"
+  ],
   "name_coupling": {
     "level": "low",
     "required_for_tm": false,
