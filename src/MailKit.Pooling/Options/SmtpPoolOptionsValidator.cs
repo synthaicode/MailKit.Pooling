@@ -46,6 +46,26 @@ internal static class SmtpPoolOptionsValidator
             throw new ArgumentOutOfRangeException(nameof(options), "AcquireTimeout must be greater than zero.");
         }
 
+        ValidateTimeout(options.ConnectTimeout, nameof(options.ConnectTimeout));
+        ValidateTimeout(options.AuthenticateTimeout, nameof(options.AuthenticateTimeout));
+        ValidateTimeout(options.SmtpSendTimeout, nameof(options.SmtpSendTimeout));
+
+        if (options.ReconnectCooldown < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), "ReconnectCooldown must not be negative.");
+        }
+
+        if (options.MaxReconnectCooldown < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), "MaxReconnectCooldown must not be negative.");
+        }
+
+        if (options.MaxReconnectCooldown > TimeSpan.Zero
+            && options.ReconnectCooldown > options.MaxReconnectCooldown)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), "MaxReconnectCooldown must be zero or greater than or equal to ReconnectCooldown.");
+        }
+
         if (options.JitterRatio is < 0d or > 1d)
         {
             throw new ArgumentOutOfRangeException(nameof(options), "JitterRatio must be between zero and one.");
@@ -59,6 +79,14 @@ internal static class SmtpPoolOptionsValidator
         if (options.MaxRetryAttempts < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(options), "MaxRetryAttempts must not be negative.");
+        }
+    }
+
+    private static void ValidateTimeout(TimeSpan timeout, string parameterName)
+    {
+        if (timeout != Timeout.InfiniteTimeSpan && timeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(parameterName, "Timeout must be positive or infinite.");
         }
     }
 

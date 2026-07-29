@@ -171,4 +171,36 @@ public sealed class ServiceCollectionExtensionsTests
 
         Assert.Contains("RetryBaseDelay", exception.Message);
     }
+
+    [Theory]
+    [InlineData(nameof(SmtpPoolOptions.ConnectTimeout))]
+    [InlineData(nameof(SmtpPoolOptions.AuthenticateTimeout))]
+    [InlineData(nameof(SmtpPoolOptions.SmtpSendTimeout))]
+    public void AddMailKitPooling_Rejects_NonPositive_OperationTimeouts_At_Registration(string propertyName)
+    {
+        var services = new ServiceCollection();
+
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => services.AddMailKitPooling(options =>
+        {
+            options.Host = new SmtpHostOptions { Host = "localhost" };
+            typeof(SmtpPoolOptions).GetProperty(propertyName)!.SetValue(options, TimeSpan.Zero);
+        }));
+
+        Assert.Contains(propertyName, exception.Message);
+    }
+
+    [Fact]
+    public void AddMailKitPooling_Rejects_ReconnectCooldown_Above_Maximum_At_Registration()
+    {
+        var services = new ServiceCollection();
+
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() => services.AddMailKitPooling(options =>
+        {
+            options.Host = new SmtpHostOptions { Host = "localhost" };
+            options.ReconnectCooldown = TimeSpan.FromSeconds(10);
+            options.MaxReconnectCooldown = TimeSpan.FromSeconds(5);
+        }));
+
+        Assert.Contains("MaxReconnectCooldown", exception.Message);
+    }
 }

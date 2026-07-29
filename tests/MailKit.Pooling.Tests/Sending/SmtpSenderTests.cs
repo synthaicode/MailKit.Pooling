@@ -240,6 +240,7 @@ public sealed class SmtpSenderTests
 
         Assert.Same(sendTask, completedTask);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await sendTask);
+        Assert.Equal(1, client.DisposeCalls);
     }
 
     [Fact]

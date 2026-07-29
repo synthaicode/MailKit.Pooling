@@ -23,7 +23,9 @@ internal sealed class SmtpPool : IAsyncDisposable
     private volatile bool disposed;
     private DateTimeOffset? nextMinPoolRefillAllowedAt;
     private int pendingConnectionCreations;
+    private int pendingConnectionDisposals;
     private int waitingCallers;
+    private static readonly TimeSpan ConnectionDisposalTimeout = TimeSpan.FromSeconds(1);
 
     public SmtpPool(
         SmtpPoolOptions options,
@@ -100,6 +102,7 @@ internal sealed class SmtpPool : IAsyncDisposable
                             brokenConnections ??= [];
                             brokenConnections.Add(candidate);
                             connections.Remove(candidateId);
+                            pendingConnectionDisposals++;
                             continue;
                         }
 
@@ -110,7 +113,7 @@ internal sealed class SmtpPool : IAsyncDisposable
 
                     if (reusableConnectionId is null)
                     {
-                        var liveConnections = connections.Count + pendingConnectionCreations;
+                        var liveConnections = GetLiveConnectionCountUnsafe();
                         if (liveConnections < options.MaxPoolSize && TrySelectHostForCreation(now, out selectedHost))
                         {
                             pendingConnectionCreations++;
@@ -143,7 +146,7 @@ internal sealed class SmtpPool : IAsyncDisposable
                 {
                     foreach (var broken in brokenConnections)
                     {
-                        await DisposeConnectionAsync(broken, cancellationToken).ConfigureAwait(false);
+                        await DisposeConnectionAndReleaseCapacityAsync(broken, cancellationToken).ConfigureAwait(false);
                     }
 
                     await TryEnsureMinimumPoolSizeAsync(cancellationToken).ConfigureAwait(false);
@@ -213,7 +216,7 @@ internal sealed class SmtpPool : IAsyncDisposable
                             pendingConnectionCreations--;
                             ApplyReconnectCooldown(selectedHost!, clock.UtcNow);
                             anotherHostEligible = AnyOtherHostEligibleForCreationUnsafe(selectedHost!, clock.UtcNow);
-                            hasLiveConnections = connections.Count + pendingConnectionCreations > 0;
+                            hasLiveConnections = GetLiveConnectionCountUnsafe() > 0;
                         }
 
                         metrics.Record(new SmtpPoolMetricEvent(
@@ -263,7 +266,7 @@ internal sealed class SmtpPool : IAsyncDisposable
     private SmtpPoolSnapshot GetSnapshotUnsafe()
     {
         return new SmtpPoolSnapshot(
-            connections.Count + pendingConnectionCreations,
+            GetLiveConnectionCountUnsafe(),
             CountIdleConnectionsUnsafe(),
             connections.Values.Count(static connection => connection.IsLeased),
             Volatile.Read(ref waitingCallers),
@@ -301,6 +304,11 @@ internal sealed class SmtpPool : IAsyncDisposable
     private static TaskCompletionSource CreateAvailabilitySignal()
     {
         return new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    private int GetLiveConnectionCountUnsafe()
+    {
+        return connections.Count + pendingConnectionCreations + pendingConnectionDisposals;
     }
 
     // Edge-triggered pulse: wakes exactly the callers that observed the
@@ -349,6 +357,7 @@ internal sealed class SmtpPool : IAsyncDisposable
                     // A discarded lease reflects a message-level or connection-level failure.
                     // Host reconnect cooldown is reserved for connection creation failures.
                     connections.Remove(connectionId);
+                    pendingConnectionDisposals++;
                     if (!disposed && connections.Count + pendingConnectionCreations < options.MinPoolSize)
                     {
                         ScheduleMinPoolRefill();
@@ -375,7 +384,7 @@ internal sealed class SmtpPool : IAsyncDisposable
 
         if (connectionToDispose is not null)
         {
-            await DisposeConnectionAsync(
+            await DisposeConnectionAndReleaseCapacityAsync(
                 connectionToDispose,
                 cancellationToken,
                 isReusable ? "shutdown" : "broken").ConfigureAwait(false);
@@ -429,7 +438,7 @@ internal sealed class SmtpPool : IAsyncDisposable
                     return;
                 }
 
-                var targetConnectionCount = connections.Count + pendingConnectionCreations;
+                var targetConnectionCount = GetLiveConnectionCountUnsafe();
                 shouldCreateConnection = targetConnectionCount < options.MinPoolSize
                     && TrySelectHostForCreation(now, out selectedHost);
 
@@ -583,6 +592,7 @@ internal sealed class SmtpPool : IAsyncDisposable
                     expiredConnections ??= [];
                     expiredConnections.Add(connection);
                     connections.Remove(connectionId);
+                    pendingConnectionDisposals++;
                     if (connections.Count + pendingConnectionCreations < options.MinPoolSize)
                     {
                         ScheduleMinPoolRefill();
@@ -606,7 +616,7 @@ internal sealed class SmtpPool : IAsyncDisposable
 
         foreach (var expiredConnection in expiredConnections)
         {
-            await DisposeConnectionAsync(expiredConnection, cancellationToken, "idle_timeout").ConfigureAwait(false);
+            await DisposeConnectionAndReleaseCapacityAsync(expiredConnection, cancellationToken, "idle_timeout").ConfigureAwait(false);
         }
     }
 
@@ -670,11 +680,26 @@ internal sealed class SmtpPool : IAsyncDisposable
 
     private async Task DisposeConnectionAsync(PooledConnection connection, CancellationToken cancellationToken, string reason = "broken")
     {
+        using var disposalCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        disposalCts.CancelAfter(ConnectionDisposalTimeout);
+
         try
         {
             if (connection.Client.IsConnected)
             {
-                await connection.Client.DisconnectAsync(quit: false, cancellationToken).ConfigureAwait(false);
+                var disconnectTask = connection.Client.DisconnectAsync(quit: false, disposalCts.Token);
+                try
+                {
+                    await disconnectTask.WaitAsync(ConnectionDisposalTimeout).ConfigureAwait(false);
+                }
+                catch (TimeoutException)
+                {
+                    _ = disconnectTask.ContinueWith(
+                        static task => _ = task.Exception,
+                        CancellationToken.None,
+                        TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                        TaskScheduler.Default);
+                }
             }
         }
 #pragma warning disable CA1031 // Intentional swallow: disconnect is a best-effort courtesy close; the connection is dropped either way.
@@ -699,6 +724,26 @@ internal sealed class SmtpPool : IAsyncDisposable
             1,
             connection.Client.EndpointKey,
             Reason: reason));
+    }
+
+    private async Task DisposeConnectionAndReleaseCapacityAsync(
+        PooledConnection connection,
+        CancellationToken cancellationToken,
+        string reason = "broken")
+    {
+        try
+        {
+            await DisposeConnectionAsync(connection, cancellationToken, reason).ConfigureAwait(false);
+        }
+        finally
+        {
+            lock (sync)
+            {
+                pendingConnectionDisposals--;
+            }
+
+            SignalConnectionAvailable();
+        }
     }
 
     private void RecordCurrentState()

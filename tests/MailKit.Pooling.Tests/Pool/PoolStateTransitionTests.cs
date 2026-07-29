@@ -54,6 +54,37 @@ public sealed class PoolStateTransitionTests
     }
 
     [Fact]
+    public async Task MaxPoolSize_Reserves_Capacity_Until_Slow_Disposal_Completes()
+    {
+        var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
+        var factory = new FakeSmtpConnectionFactory();
+        var slowClient = new FakeSmtpClientAdapter
+        {
+            OnDisconnectAsync = static (_, _) => Task.Delay(Timeout.InfiniteTimeSpan),
+        };
+        var replacementClient = new FakeSmtpClientAdapter();
+        factory.Enqueue(slowClient);
+        factory.Enqueue(replacementClient);
+
+        await using var pool = new SmtpPool(CreateOptions(reconnectCooldown: TimeSpan.Zero), factory, clock);
+
+        var lease = await pool.AcquireLeaseAsync();
+        var invalidateTask = lease.InvalidateAsync().AsTask();
+
+        await Task.Delay(TimeSpan.FromMilliseconds(100));
+
+        Assert.Equal(1, factory.CreateCalls);
+        Assert.Equal(1, pool.GetSnapshot().TotalConnections);
+
+        await invalidateTask;
+        var replacementLease = await pool.AcquireLeaseAsync();
+
+        Assert.Same(replacementClient, replacementLease.Client);
+        Assert.Equal(2, factory.CreateCalls);
+        await replacementLease.ReturnAsync();
+    }
+
+    [Fact]
     public async Task Warmup_Creates_MinPoolSize_Idle_Connections()
     {
         var clock = new FakeClock(DateTimeOffset.Parse("2026-06-05T00:00:00Z"));
