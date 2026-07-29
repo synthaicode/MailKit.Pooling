@@ -1,0 +1,81 @@
+{
+  "schema": "xrefkit.graph-profile/v1",
+  "repository": "MailKit.Pooling",
+  "profile_version": 1,
+  "generated_at": "2026-06-17",
+  "key_scheme": "roslyn-docid",
+  "extractor": { "name": "dotnet_structure_graph", "version": "v1" },
+  "scope": "MailKit.Pooling.sln (6 projects; net8.0 + net10.0 multi-target)",
+  "graph_summary": {
+    "nodes": 910,
+    "edges": 2011,
+    "name_nodes": 26
+  },
+  "regeneration_triggers": [
+    "extractor_version_changed",
+    "large_refactoring",
+    "options_schema_changed",
+    "di_registration_changed",
+    "mailkit_send_boundary_changed"
+  ],
+  "name_coupling": {
+    "level": "low",
+    "required_for_tm": false,
+    "rationale": "strongly-typed Options pattern; shared literals are test hosts / env values, not domain or config-key coupling",
+    "categories": {
+      "environment_literal": ["localhost", "docker", "smtp-a.local:2525"]
+    }
+  },
+  "hubs": {
+    "structural": [
+      {
+        "symbol": "SmtpPool..ctor",
+        "id": "M:PooledMailKit.Pooling.SmtpPool.#ctor(PooledMailKit.Options.SmtpPoolOptions,PooledMailKit.Abstractions.ISmtpConnectionFactory,PooledMailKit.Abstractions.IClock,PooledMailKit.Abstractions.ISmtpPoolMetrics)",
+        "fan_in": 57,
+        "fan_out": 2,
+        "reason": "central pool object; single-point concentration, widest change ripple"
+      },
+      {
+        "symbol": "SmtpPool.AcquireLeaseAsync",
+        "id": "M:PooledMailKit.Pooling.SmtpPool.AcquireLeaseAsync(System.Threading.CancellationToken)",
+        "fan_in": 31,
+        "fan_out": 20,
+        "reason": "core hot path (high both directions)"
+      }
+    ],
+    "test_fixture": [
+      {
+        "symbol": "FakeClock..ctor",
+        "id": "M:PooledMailKit.Tests.TestDoubles.FakeClock.#ctor(System.DateTimeOffset)",
+        "fan_in": 44,
+        "reason": "test fixture hub; treat as transit (prune), not impacted target"
+      },
+      {
+        "symbol": "FakeSmtpConnectionFactory..ctor",
+        "id": "M:PooledMailKit.Tests.TestDoubles.FakeSmtpConnectionFactory.#ctor",
+        "fan_in": 44,
+        "reason": "test fixture hub; transit"
+      },
+      {
+        "symbol": "FakeSmtpClientAdapter..ctor",
+        "id": "M:PooledMailKit.Tests.TestDoubles.FakeSmtpClientAdapter.#ctor",
+        "fan_in": 44,
+        "reason": "test fixture hub; transit"
+      }
+    ],
+    "external_boundary": [
+      {
+        "symbol": "ServiceCollectionExtensions.AddMailKitPooling",
+        "id": "M:PooledMailKit.DependencyInjection.ServiceCollectionExtensions.AddMailKitPooling(Microsoft.Extensions.DependencyInjection.IServiceCollection,System.Action{PooledMailKit.Options.SmtpPoolOptions})",
+        "external_calls": 44,
+        "reason": "DI registration boundary"
+      },
+      {
+        "symbol": "SmtpSender.SendAsync",
+        "id": "M:PooledMailKit.Sending.SmtpSender.SendAsync(MimeKit.MimeMessage,System.Threading.CancellationToken)",
+        "external_calls": 36,
+        "reason": "MailKit / MimeKit send boundary"
+      }
+    ]
+  }
+}

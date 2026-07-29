@@ -1,0 +1,49 @@
+schema: xrefkit.graph-rules/v1
+repository: MailKit.Pooling
+profile_version: 1
+
+# Traversal / pruning rules for TM candidate generation.
+# These rules are persisted and requirement-independent.
+# Per-change TM, impacted-boundary lists, traversal results, and seeds are not persisted here.
+
+traversal_policy:
+  default_edges:
+    - calls
+    - type_reference
+    - implements
+    - inherits
+
+  enabled_name_edges: []          # name coupling is not required for this repo
+
+  weak_name_edges:
+    - test_literal
+    - environment_literal
+
+  prune:
+    - test_fixture_transit        # FakeClock / FakeSmtp* (fan-in 44) are transit
+    - generated_noise
+
+name_stoplist_applied: true
+
+edge_status:
+  emitted:
+    - calls
+    - implements
+    - inherits
+    - contains
+    - declares
+    - uses-name
+
+  planned:
+    - type_reference
+    - reads
+    - writes
+    - uses-config
+    - uses-db
+
+notes: |
+  Strongly-typed (Options pattern). Name edges are not required: shared literals are test hosts / env values, already type-bound through SmtpPoolOptions.
+
+  weak_name_edges are low-signal test/environment literals and are followed only on explicit request.
+
+  prune categories are treated as transit/pass-through, not impacted targets. The test doubles are high fan-in but are pruned so they do not flood the TM.

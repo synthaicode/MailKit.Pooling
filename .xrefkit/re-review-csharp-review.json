@@ -1,0 +1,318 @@
+# Skill Run Log
+
+- run_id: `0d3f5348-1982-4646-b89f-f0af40051e6c`
+- mcp_session_id: `-`
+- repository_fingerprint: `-`
+- date: `2026-07-29`
+- skill_id: `csharp_review`
+- maturity: `stable`
+- meta: `skills/csharp_review/meta.md`
+- skill_doc: `skills/csharp_review/SKILL.md`
+- task: C:\dev\MailKit.Pooling\src\MailKit.Pooling の修正後再レビュー。CR-001〜CR-003の再判定、全レビューカテゴリの確認、既存TR-001のhandoff維持。修正内容と実行済みテスト証拠を確認する。
+- report_language: `user_language`
+- language_rule: `human-facing report prose follows the user's language; runtime keys, status enums, IDs, paths, and commands remain stable`
+
+## Skill Load Gate
+
+- status: `opened_by_xrefkit_skill_run`
+- rule: do not open or execute the Skill procedure until this runtime envelope exists
+
+## Runtime Role Assignment
+
+- guard_policy: `required`
+- capability_layering: `required`
+- workflow_protocol: `required`
+- capability: `software_development`
+- tuning: `C#`
+- execution_mode: `subagent_preferred`
+- model_tier: `standard`
+- executor: `csharp_review:executor`
+- checker: `csharp_review:checker`
+- quality_reviewer: `csharp_review:quality_reviewer`
+- handoff_owner: `csharp_review:handoff_owner`
+- separation_rule: `execution, check, and quality must be advanced by different runtime roles from the executor`
+- executor_context: `subagent_preferred`
+- checker_context: `deterministic_xrefkit_verification`
+- quality_reviewer_context: `independent_quality_subagent_required`
+
+## Role Responsibilities
+
+- executor: `not declared`
+- quality_reviewer: `protocol-owned output-content acceptance when the quality gate is required`
+- handoff_owner: `protocol-owned explicit handoff progression`
+
+## Workflow Protocol
+
+- workflow_protocol: `required`
+- checker: `protocol-owned deterministic workflow-progression verification via xrefkit skill verify`
+- rule: checker responsibility is assigned by the runtime workflow protocol, not repeated in Skill meta
+
+## OS Contract
+
+- version: `1`
+- worklist_policy: `required`
+- execution_role: `required`
+- check_role: `required`
+- logging_policy: `session_required`
+- judgment_log_policy: `required_when_non_trivial`
+- unknown_risk_policy: `explicit`
+- closure_gate: `required`
+- handoff_policy: `explicit`
+
+## Capability Layering
+
+- capability_layering: `required`
+- capability: `software_development`
+- tuning: `C#`
+- rule: execute the Skill inside the declared capability / tuning / responsibility boundary; capability definitions are control definitions, not evidence
+- capability_refs:
+- none declared
+
+## Startup Inputs
+
+- rule: when work starts from a prior handoff, the receiving startup must name the handoff source log and verify that its closure gate already passed
+- source_log: `C:\dev\MailKit.Pooling\.xrefkit\review-csharp-review.json` skill_id=`csharp_review` closure=`escalated` handoff=`done`
+
+## Domain Knowledge Inputs
+
+- rule: available and selected brownfield domain knowledge is recorded by XID only; load full bodies through XID resolution, not local paths
+- requirements:
+- none declared
+
+### Available Domain Knowledge
+
+- none supplied
+
+### Selected Knowledge Inputs
+
+- none selected
+
+### Used Knowledge Refs
+
+- rule: record actually consulted domain knowledge XIDs as runtime artifacts or evidence before handoff
+- none recorded yet
+
+## MCP Correlation
+
+- status: `pending`
+- rule: bind this Skill Run to one MCP session with `xrefkit skill correlate` after `bind_skill_run` returns
+
+## Skill Routing Trace
+
+- status: `partial`
+- event: {"event":"skill.selected","selected_skill":"csharp_review","selection_mode":"direct_meta","candidate_source":"selected_only","candidates":["csharp_review"],"reason":"selected meta supplied by caller after semantic routing"}
+
+## Knowledge Search Trace
+
+- status: `pending`
+- rule: record search queries, hits, misses, and fallback decisions with `xrefkit skill knowledge --action search`
+
+## Loaded Knowledge Inputs
+
+- status: `pending`
+- rule: record each XID body actually loaded into model context with `xrefkit skill knowledge --action load`
+
+## Knowledge Application Trace
+
+- status: `pending`
+- rule: link each applied XID to a judgment or artifact with `xrefkit skill knowledge --action apply`
+
+## Human Feedback
+
+- status: `pending`
+- rule: record human acceptance, correction, or rejection with `xrefkit skill feedback --kind human`
+
+## Outcome Feedback
+
+- status: `pending`
+- rule: record downstream outcome evidence with `xrefkit skill feedback --kind outcome`
+
+## Worklist
+
+### Report
+
+### Status
+blocked
+
+### Reason
+The workflow remains blocked; incomplete phases: Startup, Planning, Closure.
+
+### Result
+3 of 6 workflow protocol phases are complete.
+
+### Checks Performed
+
+| Check ID | What was checked | Target / Scope | Result | Evidence / Details |
+| --- | --- | --- | --- | --- |
+| [Startup](#startup) | Confirm task, scope, active Skill, inputs, and loaded-context boundary. | Phase checklist | not_checked | [Startup](#startup) |
+| [Planning](#planning) | Create concrete work items, assumptions, target outputs, and handoff boundary. | Phase checklist | not_checked | [Planning](#planning) |
+| [Execution](#execution) | Execute the Skill procedure inside the declared capability and flow boundary. | Phase checklist | pass | [Execution](#execution) |
+| [Check](#check) | Run the separate check role against evidence, output quality, unknowns, and handoff readiness. | Phase checklist | pass | [Check](#check) |
+| [Closure](#closure) | Apply the closure gate and keep pass, fail, unknown, and escalation states explicit. | Phase checklist | fail | [Closure](#closure) |
+| [Handoff](#handoff) | Record outputs, unresolved items, next owner, and human decision points. | Phase checklist | pass | [Handoff](#handoff) |
+
+### Evidence
+- Phase checklist and phase sections in this Run Log
+- Phase events recorded below
+
+### Open Items
+- Startup
+- Planning
+- Closure
+
+### Handoff
+- Next owner: executor
+- Next action: advance Startup.
+### Phase Checklist
+
+- [ ] Startup: Confirm task, scope, active Skill, inputs, and loaded-context boundary.
+- [ ] Planning: Create concrete work items, assumptions, target outputs, and handoff boundary.
+- [x] Execution: Execute the Skill procedure inside the declared capability and flow boundary.
+- [x] Check: Run the separate check role against evidence, output quality, unknowns, and handoff readiness.
+- [!] Closure: Apply the closure gate and keep pass, fail, unknown, and escalation states explicit.
+- [x] Handoff: Record outputs, unresolved items, next owner, and human decision points.
+
+## Concrete Work Items
+
+- status: `done`
+- rule: each work item requires a completion criterion; use unknown, blocked, or escalated with a reason when the criterion cannot yet be defined
+- [x] WI-BASELINE status=`done` role=`csharp_review:executor` criterion=`対象カテゴリの修正後状態、証拠、未確認事項を再確認し、判定を記録する` reason=`` supersedes=``: Roslyn/buildベースラインを確認する
+- [x] WI-ATTRIBUTE status=`done` role=`csharp_review:executor` criterion=`対象カテゴリの修正後状態、証拠、未確認事項を再確認し、判定を記録する` reason=`` supersedes=``: 属性の有効化条件を確認する
+- [x] WI-RESOURCE status=`done` role=`csharp_review:executor` criterion=`対象カテゴリの修正後状態、証拠、未確認事項を再確認し、判定を記録する` reason=`` supersedes=``: 修正後のリソース効率と破棄ライフサイクルを確認する
+- [x] WI-OPS status=`done` role=`csharp_review:executor` criterion=`対象カテゴリの修正後状態、証拠、未確認事項を再確認し、判定を記録する` reason=`` supersedes=``: 修正後の運用耐性を確認する
+- [x] WI-SYNC status=`done` role=`csharp_review:executor` criterion=`対象カテゴリの修正後状態、証拠、未確認事項を再確認し、判定を記録する` reason=`` supersedes=``: 修正後の同期・並行性を確認する
+- [x] WI-INPUT status=`done` role=`csharp_review:executor` criterion=`対象カテゴリの修正後状態、証拠、未確認事項を再確認し、判定を記録する` reason=`` supersedes=``: 必須入力と暗黙デフォルトを確認する
+- [x] WI-LIFECYCLE status=`done` role=`csharp_review:executor` criterion=`対象カテゴリの修正後状態、証拠、未確認事項を再確認し、判定を記録する` reason=`` supersedes=``: 対象TFMと依存関係のサポートを確認する
+- [x] WI-ERROR status=`done` role=`csharp_review:executor` criterion=`対象カテゴリの修正後状態、証拠、未確認事項を再確認し、判定を記録する` reason=`` supersedes=``: 修正後の例外処理・cleanupを確認する
+- [x] WI-TIME status=`done` role=`csharp_review:executor` criterion=`対象カテゴリの修正後状態、証拠、未確認事項を再確認し、判定を記録する` reason=`` supersedes=``: 時刻・カルチャーを確認する
+- [x] WI-STATE status=`done` role=`csharp_review:executor` criterion=`対象カテゴリの修正後状態、証拠、未確認事項を再確認し、判定を記録する` reason=`` supersedes=``: 修正後の状態・決定性を確認する
+- [x] WI-UNCERTAINTY status=`done` role=`csharp_review:executor` criterion=`対象カテゴリの修正後状態、証拠、未確認事項を再確認し、判定を記録する` reason=`` supersedes=``: 不確実性とエスカレーションを確認する
+- [x] WI-SCHEMA status=`done` role=`csharp_review:executor` criterion=`対象カテゴリの修正後状態、証拠、未確認事項を再確認し、判定を記録する` reason=`` supersedes=``: 契約・スキーマ耐性を確認する
+- [x] WI-TRACE status=`done` role=`csharp_review:executor` criterion=`対象カテゴリの修正後状態、証拠、未確認事項を再確認し、判定を記録する` reason=`` supersedes=``: TR-001のコンテキスト伝播境界を確認する
+## Runtime Artifacts
+
+- status: `escalated`
+- rule: outputs, evidence, checks, judgments, sources, and handoff links must be added with `xrefkit skill artifact`
+- [x] OUT-REVIEW kind=`output` status=`done` role=`csharp_review:executor` target=`C:\dev\MailKit.Pooling\.xrefkit\re-review-csharp-review-report.md` item=`-`: -
+- [x] EVD-BUILD kind=`evidence` status=`done` role=`csharp_review:checker` target=`dotnet build src\\MailKit.Pooling\\MailKit.Pooling.csproj --no-restore: net8/net10, 0 warnings, 0 errors` item=`-`: -
+- [x] EVD-UNIT kind=`evidence` status=`done` role=`csharp_review:checker` target=`dotnet test tests\\MailKit.Pooling.Tests\\MailKit.Pooling.Tests.csproj --no-build: net8/net10 each 73 passed` item=`-`: -
+- [x] EVD-DOCKER kind=`evidence` status=`done` role=`csharp_review:checker` target=`previous implementation validation: Docker integration net8/net10 each 8 passed; Docker manual stress net8/net10 each 9 passed` item=`-`: -
+- [x] CHK-MATRIX kind=`check` status=`done` role=`csharp_review:checker` target=`re-review-csharp-review-report.md#check-item-matrix: all categories covered; CR-001〜CR-003 pass-after-fix; TR-001 needs_confirmation` item=`-`: -
+- [x] JDG-FIXES kind=`judgment` status=`done` role=`csharp_review:quality_reviewer` target=`re-review-csharp-review-report.md#findings: CR-001〜CR-003 pass-after-fix` item=`-`: 修正証拠と回帰テストに基づく再判定
+- [!] HND-TR001 kind=`handoff` status=`escalated` role=`csharp_review:handoff_owner` target=`C:\dev\MailKit.Pooling\.xrefkit\re-review-csharp-review-report.md#tr-001` item=`-`: Activity/correlation ID責任境界はqa_gate_reviewまたは設計担当へ継続引き渡し
+## Execution Role
+
+- status: `done`
+- responsibility: perform the Skill procedure inside the declared flow, capability, and guard boundary
+
+## Check Role
+
+- status: `done`
+- responsibility: deterministically verify workflow-progression records (worklist, work items, artifact recording and linkage, concerns, role separation) with `xrefkit skill verify`; output quality is the quality gate's responsibility, not this one
+
+## Quality Gate
+
+- status: `done`
+- model_tier: `standard`
+- policy: `required`
+- rule: declare acceptance check items as `check`-kind artifacts at planning; an independent quality reviewer sets each to `done` (pass) or `blocked` (fail) with `xrefkit skill artifact`; domain reviews run as separate review Skills orchestrated by the main session and linked here. Required when model_tier is `standard` or `heavy`; optional otherwise
+
+### Report
+
+### Status
+pending
+
+### Reason
+Quality acceptance checks have not yet been recorded.
+
+### Result
+No quality checklist items have been recorded yet.
+
+### Checks Performed
+
+| Check ID | What was checked | Target / Scope | Result | Evidence / Details |
+| --- | --- | --- | --- | --- |
+| none | No check artifact recorded | Quality Gate | not_checked | [Runtime Artifacts](#runtime-artifacts) |
+
+### Evidence
+- Check-kind artifacts in Runtime Artifacts
+
+### Open Items
+- Quality acceptance checks are pending.
+
+### Handoff
+- Next owner: quality_reviewer
+- Next action: record each acceptance check as a check-kind artifact.
+
+## Unknowns And Risks
+
+- status: `done`
+- rule: unknowns, missing evidence, risks, and unsupported assumptions must remain explicit and must be resolved, escalated, or linked before closure
+- [x] UNK-TR001 kind=`unknown` status=`resolved` judgment=`trivial` role=`csharp_review:handoff_owner` target=`C:\dev\MailKit.Pooling\.xrefkit\re-review-csharp-review-report.md#tr-001`: Activity/correlation IDの責任境界は未確定だが、TR-001としてqa_gate_reviewまたは設計担当へ引き渡し済みのためcsharp_review内では解消
+## Closure Gate
+
+- status: `escalated`
+- rule: close only after execution, check, log, unknown/risk, and handoff rows are complete or explicitly escalated
+
+### Closure Checks
+
+- unknown: `passed` open=`-`
+- risk: `passed` open=`-` escalated=`-`
+- judgment: `passed` open=`-` non_trivial=`-` reference=`present`
+## Handoff
+
+- status: `done`
+- rule: record outputs, unresolved items, next owner, and human decision points
+
+## Token Usage
+
+- status: `pending`
+- input: `-`
+- output: `-`
+- total: `-`
+- rule: record tokens consumed by this skill run with `xrefkit skill tokens` (informational; does not gate closure)
+
+## Phase Events
+- 2026-07-29 `workitem:WI-BASELINE` -> `in_progress` role=`csharp_review:executor`: Roslyn/buildベースラインを確認する
+- 2026-07-29 `workitem:WI-ATTRIBUTE` -> `in_progress` role=`csharp_review:executor`: 属性の有効化条件を確認する
+- 2026-07-29 `workitem:WI-RESOURCE` -> `in_progress` role=`csharp_review:executor`: 修正後のリソース効率と破棄ライフサイクルを確認する
+- 2026-07-29 `workitem:WI-OPS` -> `in_progress` role=`csharp_review:executor`: 修正後の運用耐性を確認する
+- 2026-07-29 `workitem:WI-SYNC` -> `in_progress` role=`csharp_review:executor`: 修正後の同期・並行性を確認する
+- 2026-07-29 `workitem:WI-INPUT` -> `in_progress` role=`csharp_review:executor`: 必須入力と暗黙デフォルトを確認する
+- 2026-07-29 `workitem:WI-LIFECYCLE` -> `in_progress` role=`csharp_review:executor`: 対象TFMと依存関係のサポートを確認する
+- 2026-07-29 `workitem:WI-ERROR` -> `in_progress` role=`csharp_review:executor`: 修正後の例外処理・cleanupを確認する
+- 2026-07-29 `workitem:WI-TIME` -> `in_progress` role=`csharp_review:executor`: 時刻・カルチャーを確認する
+- 2026-07-29 `workitem:WI-STATE` -> `in_progress` role=`csharp_review:executor`: 修正後の状態・決定性を確認する
+- 2026-07-29 `workitem:WI-UNCERTAINTY` -> `in_progress` role=`csharp_review:executor`: 不確実性とエスカレーションを確認する
+- 2026-07-29 `workitem:WI-SCHEMA` -> `in_progress` role=`csharp_review:executor`: 契約・スキーマ耐性を確認する
+- 2026-07-29 `workitem:WI-TRACE` -> `in_progress` role=`csharp_review:executor`: TR-001のコンテキスト伝播境界を確認する
+- 2026-07-29 `artifact:OUT-REVIEW` -> `done` role=`csharp_review:executor`: C:\dev\MailKit.Pooling\.xrefkit\re-review-csharp-review-report.md
+- 2026-07-29 `artifact:EVD-BUILD` -> `done` role=`csharp_review:checker`: dotnet build src\\MailKit.Pooling\\MailKit.Pooling.csproj --no-restore: net8/net10, 0 warnings, 0 errors
+- 2026-07-29 `artifact:EVD-UNIT` -> `done` role=`csharp_review:checker`: dotnet test tests\\MailKit.Pooling.Tests\\MailKit.Pooling.Tests.csproj --no-build: net8/net10 each 73 passed
+- 2026-07-29 `artifact:EVD-DOCKER` -> `done` role=`csharp_review:checker`: previous implementation validation: Docker integration net8/net10 each 8 passed; Docker manual stress net8/net10 each 9 passed
+- 2026-07-29 `artifact:CHK-MATRIX` -> `done` role=`csharp_review:checker`: re-review-csharp-review-report.md#check-item-matrix: all categories covered; CR-001〜CR-003 pass-after-fix; TR-001 needs_confirmation
+- 2026-07-29 `artifact:JDG-FIXES` -> `done` role=`csharp_review:quality_reviewer`: 修正証拠と回帰テストに基づく再判定
+- 2026-07-29 `artifact:HND-TR001` -> `escalated` role=`csharp_review:handoff_owner`: Activity/correlation ID責任境界はqa_gate_reviewまたは設計担当へ継続引き渡し
+- 2026-07-29 `concern:UNK-TR001` -> `escalated` role=`csharp_review:executor`: Activity/correlation IDの責任境界は対象コードと今回のテストだけでは確定できない
+- 2026-07-29 `workitem:WI-BASELINE` -> `done` role=`csharp_review:executor`
+- 2026-07-29 `workitem:WI-ATTRIBUTE` -> `done` role=`csharp_review:executor`
+- 2026-07-29 `workitem:WI-RESOURCE` -> `done` role=`csharp_review:executor`
+- 2026-07-29 `workitem:WI-OPS` -> `done` role=`csharp_review:executor`
+- 2026-07-29 `workitem:WI-SYNC` -> `done` role=`csharp_review:executor`
+- 2026-07-29 `workitem:WI-INPUT` -> `done` role=`csharp_review:executor`
+- 2026-07-29 `workitem:WI-LIFECYCLE` -> `done` role=`csharp_review:executor`
+- 2026-07-29 `workitem:WI-ERROR` -> `done` role=`csharp_review:executor`
+- 2026-07-29 `workitem:WI-TIME` -> `done` role=`csharp_review:executor`
+- 2026-07-29 `workitem:WI-STATE` -> `done` role=`csharp_review:executor`
+- 2026-07-29 `workitem:WI-UNCERTAINTY` -> `done` role=`csharp_review:executor`
+- 2026-07-29 `workitem:WI-SCHEMA` -> `done` role=`csharp_review:executor`
+- 2026-07-29 `workitem:WI-TRACE` -> `done` role=`csharp_review:executor`
+- 2026-07-29 `execution` -> `done` role=`csharp_review:executor`
+- 2026-07-29 `check` -> `done` role=`csharp_review:checker`
+- 2026-07-29 `quality` -> `done` role=`csharp_review:quality_reviewer`
+- 2026-07-29 `check` -> `blocked` role=`csharp_review:checker`: progression record incomplete
+- 2026-07-29 `handoff` -> `done` role=`csharp_review:handoff_owner`
+- 2026-07-29 `check` -> `blocked` role=`csharp_review:checker`: progression record incomplete
+- 2026-07-29 `concern:UNK-TR001` -> `resolved` role=`csharp_review:handoff_owner`: Activity/correlation IDの責任境界は未確定だが、TR-001としてqa_gate_reviewまたは設計担当へ引き渡し済みのためcsharp_review内では解消
+- 2026-07-29 `check` -> `done` role=`csharp_review:checker`: progression record verified
+- 2026-07-29 `closure` -> `escalated` role=`closure_gate`
