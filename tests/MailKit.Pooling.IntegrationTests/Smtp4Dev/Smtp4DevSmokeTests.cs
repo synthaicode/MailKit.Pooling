@@ -142,13 +142,14 @@ public sealed class Smtp4DevSmokeTests
     {
         await using var testLock = await Smtp4DevTestLock.AcquireAsync();
         await EnsureSmtp4DevStartedAsync();
+        await WaitForSmtpProtocolReadyAsync();
 
         var options = CreateOptions(
             maxPoolSize: 1,
-            reconnectCooldown: TimeSpan.FromMilliseconds(400),
+            reconnectCooldown: TimeSpan.FromSeconds(4),
             keepAliveInterval: TimeSpan.Zero,
-            acquireTimeout: TimeSpan.FromMilliseconds(100),
-            connectTimeout: TimeSpan.FromMilliseconds(200));
+            acquireTimeout: TimeSpan.FromSeconds(2),
+            connectTimeout: TimeSpan.FromSeconds(1));
         var factory = new MailKitSmtpConnectionFactory(options, new DefaultMailKitSmtpClientFactory());
         await using var pool = new SmtpPool(options, factory);
         var sender = new SmtpSender(pool, new DefaultSmtpErrorClassifier(), options);
@@ -170,6 +171,7 @@ public sealed class Smtp4DevSmokeTests
 
             await ResumeSmtp4DevAsync();
             await WaitForSmtp4DevAvailabilityAsync(isAvailable: true, TimeSpan.FromSeconds(15));
+            await WaitForSmtpProtocolReadyAsync();
             await Task.Delay(options.ReconnectCooldown + TimeSpan.FromMilliseconds(100));
 
             var recovered = await sender.SendAsync(CreateMessage($"mailkit-pooling-recovered-{Guid.NewGuid():N}"));
@@ -267,6 +269,45 @@ public sealed class Smtp4DevSmokeTests
     {
         await StartSmtp4DevAsync();
         await WaitForSmtp4DevAvailabilityAsync(isAvailable: true, TimeSpan.FromSeconds(15));
+    }
+
+    private static async Task WaitForSmtpProtocolReadyAsync()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        Exception? lastFailure = null;
+        while (!deadline.IsCancellationRequested)
+        {
+            // Each independent probe performs the SMTP greeting/EHLO and NOOP,
+            // without sending mail or changing the pool's cooldown state.
+            using (var client = new global::MailKit.Net.Smtp.SmtpClient())
+            {
+                try
+                {
+                    await client.ConnectAsync("localhost", 2525, global::MailKit.Security.SecureSocketOptions.None, deadline.Token)
+                        .ConfigureAwait(false);
+                    await client.NoOpAsync(deadline.Token).ConfigureAwait(false);
+                    deadline.Token.ThrowIfCancellationRequested();
+                    return;
+                }
+#pragma warning disable CA1031 // Readiness probes retry protocol/transport failures within one bounded deadline.
+                catch (Exception exception)
+                {
+                    lastFailure = exception;
+                }
+#pragma warning restore CA1031
+            }
+
+            try
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(100), deadline.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (deadline.IsCancellationRequested)
+            {
+                break;
+            }
+        }
+
+        throw new TimeoutException("smtp4dev SMTP greeting/EHLO and NOOP did not become ready within 15 seconds.", lastFailure);
     }
 
     private static async Task WaitForSmtp4DevAvailabilityAsync(bool isAvailable, TimeSpan timeout)

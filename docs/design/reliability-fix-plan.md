@@ -45,3 +45,11 @@ unchanged manual partial-outage test as independent runtime confirmation.
 The user additionally requires Portable PDBs in the regular nupkg for both
 frameworks. Validate each packaged PDB against the corresponding DLL debug
 identity, in addition to producing a separate snupkg.
+
+Publication CI exposed an existing real-SMTP recovery test whose 100ms whole
+acquisition budget was shorter than its 200ms connection timeout and whose
+readiness check covered only HTTP. Correct the harness budget relationship to
+Connect1s < Acquire2s < Cooldown4s, add bounded15s independent SMTP/EHLO/NOOP
+readiness with disposal/no send, preserve all recovery/cooldown assertions, and
+serialize workflow tests as originally planned. Product logic is unchanged;
+retain failed-run evidence and prove corrected CI before public push.
