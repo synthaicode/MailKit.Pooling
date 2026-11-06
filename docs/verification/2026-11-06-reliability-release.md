@@ -110,3 +110,26 @@ its matching PDB SHA-256 was
 These identify this local verification build, not the later GitHub publication
 build whose repository commit and packaged DLL/PDB identities must be checked
 separately.
+
+## Release CI correction
+
+The first tag-triggered publication run 42177573637 stopped at Test, before Pack
+or Push. Both targets passed unit/component tests but failed the existing SMTP
+recovery integration assertion with PoolExhausted. That test allowed only 100 ms
+for whole acquisition while allowing 200 ms for connection setup, and checked
+only the HTTP API after restarting smtp4dev. The exact contribution of host
+latency, readiness and concurrent execution is not established by that log.
+
+The test now uses AcquireTimeout 2 s, ConnectTimeout 1 s and reconnect cooldown
+4 s, preserving ConnectTimeout < AcquireTimeout < cooldown. Its original
+cooldown-exhaustion classification and single-attempt recovery assertions are
+retained. An independent bounded SMTP greeting/EHLO + NOOP probe checks readiness
+before initial/recovered sends without sending messages or mutating pool options.
+The workflow runs project/framework tests serially, matching the approved local
+verification plan. No production code or strict deadline regression was changed.
+The failed tag is retained; corrected main is published via the workflow's
+explicit version input, and the public package repository commit is verified.
+
+The corrected integration project rebuilt with zero warnings/errors and passed
+all eight integration tests per target, with no skips (16 total). Product source
+is byte-for-byte unchanged from the already reviewed reliability commit.
