@@ -17,6 +17,9 @@ jobs:
   stable_publish:
     if: ${{ !contains(github.ref_name, '-') }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -66,10 +69,17 @@ jobs:
       - name: Pack
         run: dotnet pack src/MailKit.Pooling/MailKit.Pooling.csproj -c Release --no-build -p:PackageVersion="${{ env.VERSION }}" -o ./artifacts
 
+      - name: NuGet login (Trusted Publishing)
+        if: env.ON_MAIN == 'true'
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        id: login
+        with:
+          user: commander
+
       - name: Push to nuget.org
         if: env.ON_MAIN == 'true'
         env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
         run: |
           dotnet nuget push "./artifacts/*.nupkg" \
             -s "https://api.nuget.org/v3/index.json" \
