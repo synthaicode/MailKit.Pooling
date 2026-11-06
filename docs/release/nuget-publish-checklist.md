@@ -1,7 +1,7 @@
 # NuGet Publish Checklist
 
 This checklist captures the remaining preparation work for publishing
-`MailKit.Pooling` to NuGet.
+`PooledMailKit` to NuGet.
 
 Use it as a release gate, not just as a rough to-do memo.
 
@@ -103,7 +103,30 @@ Use it as a release gate, not just as a rough to-do memo.
 - add or confirm a publish workflow:
   - manual trigger or tag trigger
   - no publish before build/test/pack pass
-- store NuGet API key in GitHub Secrets
+- use Trusted Publishing through `NuGet/login`, pinned to commit
+  `8d196754b4036150537f80ac539e15c2f1028841` (`v1.2.0`)
+- grant `contents: read` and `id-token: write` only to the publish job
+- request the short-lived key after packing, immediately before pushing
+- use `steps.login.outputs.NUGET_API_KEY`; do not fall back to the stored API key
+- retain the main-commit guard for both login and push
+- configure and verify the following policy in nuget.org Trusted Publishing:
+
+  | Policy field | Required value |
+  |---|---|
+  | Selected NuGet owner | `commander` |
+  | GitHub repository owner | `synthaicode` |
+  | GitHub repository | `MailKit.Pooling` |
+  | Workflow file | `nuget-publish.yml` (filename only) |
+  | Environment | Leave blank; the job does not use a GitHub environment |
+  | Package scope | `PooledMailKit`, new versions |
+
+  The NuGet-side policy has **not yet been configured or verified**. Workflow
+  changes alone do not complete the migration. Verify the policy and a successful
+  token exchange/publish before marking Trusted Publishing ready.
+
+  References: [NuGet Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing)
+  and [NuGet/login v1.2.0](https://github.com/NuGet/login/blob/v1.2.0/README.md).
+
 - decide whether publish starts with:
   - dry-run only
   - prerelease package
