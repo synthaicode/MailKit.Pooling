@@ -288,11 +288,12 @@ public sealed class PoolStateTransitionTests
 
         Assert.True(
             SpinWait.SpinUntil(
-                () => clock.DelayCallCount >= delayCallsBeforeBlockedAcquire + 1,
+                () => clock.DelayCallCount >= delayCallsBeforeBlockedAcquire + 2,
                 TimeSpan.FromSeconds(1)),
-            "Expected the blocked acquire to park on a timer wait.");
+            "Expected the overall acquisition deadline and availability wait timers.");
         await Task.Delay(100);
-        Assert.Equal(delayCallsBeforeBlockedAcquire + 1, clock.DelayCallCount);
+        // One deadline plus one availability wait; stale pulses must not start another wait.
+        Assert.Equal(delayCallsBeforeBlockedAcquire + 2, clock.DelayCallCount);
         Assert.False(blockedAcquire.IsCompleted);
 
         await lease.ReturnAsync();

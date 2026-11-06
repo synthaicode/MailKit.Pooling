@@ -1,3 +1,4 @@
+using PooledMailKit.Internal;
 using PooledMailKit.MailKit;
 
 namespace PooledMailKit.Options;
@@ -41,23 +42,28 @@ internal static class SmtpPoolOptionsValidator
             throw new ArgumentOutOfRangeException(nameof(options), "MinPoolSize must be between zero and MaxPoolSize.");
         }
 
-        if (options.AcquireTimeout <= TimeSpan.Zero)
+        if (options.AcquireTimeout <= TimeSpan.Zero || options.AcquireTimeout > TimeoutExecution.MaximumSupportedDelay)
         {
-            throw new ArgumentOutOfRangeException(nameof(options), "AcquireTimeout must be greater than zero.");
+            throw new ArgumentOutOfRangeException(nameof(options), "AcquireTimeout must be positive and supported by the timer.");
         }
 
         ValidateTimeout(options.ConnectTimeout, nameof(options.ConnectTimeout));
         ValidateTimeout(options.AuthenticateTimeout, nameof(options.AuthenticateTimeout));
         ValidateTimeout(options.SmtpSendTimeout, nameof(options.SmtpSendTimeout));
 
-        if (options.ReconnectCooldown < TimeSpan.Zero)
+        if (options.ReconnectCooldown < TimeSpan.Zero || options.ReconnectCooldown > TimeoutExecution.MaximumSupportedDelay)
         {
-            throw new ArgumentOutOfRangeException(nameof(options), "ReconnectCooldown must not be negative.");
+            throw new ArgumentOutOfRangeException(nameof(options), "ReconnectCooldown must be nonnegative and supported by the timer.");
         }
 
-        if (options.MaxReconnectCooldown < TimeSpan.Zero)
+        if (options.MaxReconnectCooldown < TimeSpan.Zero || options.MaxReconnectCooldown > TimeoutExecution.MaximumSupportedDelay)
         {
-            throw new ArgumentOutOfRangeException(nameof(options), "MaxReconnectCooldown must not be negative.");
+            throw new ArgumentOutOfRangeException(nameof(options), "MaxReconnectCooldown must be nonnegative and supported by the timer.");
+        }
+
+        if (options.MinPoolRefillDelay < TimeSpan.Zero || options.MinPoolRefillDelay > TimeoutExecution.MaximumSupportedDelay)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), "MinPoolRefillDelay must be nonnegative and supported by the timer.");
         }
 
         if (options.MaxReconnectCooldown > TimeSpan.Zero
@@ -66,14 +72,14 @@ internal static class SmtpPoolOptionsValidator
             throw new ArgumentOutOfRangeException(nameof(options), "MaxReconnectCooldown must be zero or greater than or equal to ReconnectCooldown.");
         }
 
-        if (options.JitterRatio is < 0d or > 1d)
+        if (!double.IsFinite(options.JitterRatio) || options.JitterRatio is < 0d or > 1d)
         {
             throw new ArgumentOutOfRangeException(nameof(options), "JitterRatio must be between zero and one.");
         }
 
-        if (options.RetryBaseDelay < TimeSpan.Zero)
+        if (options.RetryBaseDelay < TimeSpan.Zero || options.RetryBaseDelay > TimeoutExecution.MaximumSupportedDelay)
         {
-            throw new ArgumentOutOfRangeException(nameof(options), "RetryBaseDelay must not be negative.");
+            throw new ArgumentOutOfRangeException(nameof(options), "RetryBaseDelay must be nonnegative and supported by the timer.");
         }
 
         if (options.MaxRetryAttempts < 0)
@@ -84,9 +90,10 @@ internal static class SmtpPoolOptionsValidator
 
     private static void ValidateTimeout(TimeSpan timeout, string parameterName)
     {
-        if (timeout != Timeout.InfiniteTimeSpan && timeout <= TimeSpan.Zero)
+        if (timeout != Timeout.InfiniteTimeSpan
+            && (timeout <= TimeSpan.Zero || timeout > TimeoutExecution.MaximumSupportedDelay))
         {
-            throw new ArgumentOutOfRangeException(parameterName, "Timeout must be positive or infinite.");
+            throw new ArgumentOutOfRangeException(parameterName, "Timeout must be positive and supported by the timer, or infinite.");
         }
     }
 

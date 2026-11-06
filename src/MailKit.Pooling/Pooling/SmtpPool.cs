@@ -36,7 +36,7 @@ internal sealed class SmtpPool : IAsyncDisposable
         this.options = options ?? throw new ArgumentNullException(nameof(options));
         this.connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
         this.clock = clock ?? SystemClock.Instance;
-        this.metrics = metrics ?? NoOpSmtpPoolMetrics.Instance;
+        this.metrics = SafeSmtpPoolMetrics.Wrap(metrics);
 
         // The pool is constructible without the DI package, so the shared
         // rules are enforced here as well as at registration time.
@@ -49,203 +49,409 @@ internal sealed class SmtpPool : IAsyncDisposable
     public async Task<SmtpConnectionLease> AcquireLeaseAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        await TryEnsureMinimumPoolSizeAsync(cancellationToken).ConfigureAwait(false);
-
+        cancellationToken.ThrowIfCancellationRequested();
         var acquireStartedAt = clock.UtcNow;
-        var deadline = clock.UtcNow + options.AcquireTimeout;
-        var reconnectSuppressedRecorded = false;
+        var acquisition = new AcquisitionState(cancellationToken);
+        using var timerCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var acquisitionCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var handedOff = false;
         Interlocked.Increment(ref waitingCallers);
 
         try
         {
-            while (true)
+            // Start the budget before refill, connection creation or keepalive.
+            var timeoutTask = clock.Delay(options.AcquireTimeout, timerCts.Token);
+            var acquisitionTask = AcquireLeaseCoreAsync(acquireStartedAt, acquisitionCts.Token, acquisition);
+            var completed = await Task.WhenAny(acquisitionTask, timeoutTask).ConfigureAwait(false);
+            if (completed == acquisitionTask)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                // Observe the availability signal before inspecting pool state
-                // so a return that lands between the check and the wait still
-                // wakes this caller (no lost wake-up, no stale signal).
-                var availabilitySignal = ObserveConnectionAvailability();
-                await DisposeExpiredIdleConnectionsAsync(cancellationToken).ConfigureAwait(false);
-
-                var now = clock.UtcNow;
-                if (now >= deadline)
+                var lease = await acquisitionTask.ConfigureAwait(false);
+                if (!cancellationToken.IsCancellationRequested
+                    && !timeoutTask.IsCompletedSuccessfully
+                    && GetAcquisitionRemaining(acquireStartedAt) > TimeSpan.Zero)
                 {
-                    RecordAcquireWaitTime(acquireStartedAt, now);
-                    metrics.Record(new SmtpPoolMetricEvent(
-                        SmtpMetricNames.PoolAcquireExhaustedCount,
-                        SmtpMetricInstrumentKind.Counter,
-                        1));
-                    throw new SmtpPoolExhaustedException("Timed out while waiting for an SMTP connection lease.");
+                    RecordAcquireWaitTime(acquireStartedAt, clock.UtcNow);
+                    return lease;
                 }
-
-                List<PooledConnection>? brokenConnections = null;
-                Guid? reusableConnectionId = null;
-                HostRuntimeState? selectedHost = null;
-                bool shouldCreateConnection = false;
-                bool reconnectSuppressed = false;
-
-                lock (sync)
-                {
-                    ThrowIfDisposed();
-
-                    while (idleConnectionIds.Count > 0)
-                    {
-                        var candidateId = idleConnectionIds.Dequeue();
-                        if (!connections.TryGetValue(candidateId, out var candidate))
-                        {
-                            continue;
-                        }
-
-                        if (IsConnectionUnusable(candidate))
-                        {
-                            brokenConnections ??= [];
-                            brokenConnections.Add(candidate);
-                            connections.Remove(candidateId);
-                            pendingConnectionDisposals++;
-                            continue;
-                        }
-
-                        candidate.IsLeased = true;
-                        reusableConnectionId = candidateId;
-                        break;
-                    }
-
-                    if (reusableConnectionId is null)
-                    {
-                        var liveConnections = GetLiveConnectionCountUnsafe();
-                        if (liveConnections < options.MaxPoolSize && TrySelectHostForCreation(now, out selectedHost))
-                        {
-                            pendingConnectionCreations++;
-                            shouldCreateConnection = true;
-                        }
-                        else if (liveConnections < options.MaxPoolSize)
-                        {
-                            reconnectSuppressed = true;
-                        }
-                    }
-                }
-
-                if (reconnectSuppressed)
-                {
-                    if (!reconnectSuppressedRecorded)
-                    {
-                        metrics.Record(new SmtpPoolMetricEvent(
-                            SmtpMetricNames.PoolReconnectSuppressed,
-                            SmtpMetricInstrumentKind.Counter,
-                            1));
-                        reconnectSuppressedRecorded = true;
-                    }
-                }
-                else
-                {
-                    reconnectSuppressedRecorded = false;
-                }
-
-                if (brokenConnections is not null)
-                {
-                    foreach (var broken in brokenConnections)
-                    {
-                        await DisposeConnectionAndReleaseCapacityAsync(broken, cancellationToken).ConfigureAwait(false);
-                    }
-
-                    await TryEnsureMinimumPoolSizeAsync(cancellationToken).ConfigureAwait(false);
-                }
-
-                if (reusableConnectionId is not null)
-                {
-                    PooledConnection? leasedConnection;
-
-                    lock (sync)
-                    {
-                        connections.TryGetValue(reusableConnectionId.Value, out leasedConnection);
-                    }
-
-                    if (leasedConnection is null)
-                    {
-                        continue;
-                    }
-
-                    if (await ValidateLeasedConnectionAsync(leasedConnection, cancellationToken).ConfigureAwait(false))
-                    {
-                        RecordAcquireWaitTime(acquireStartedAt, clock.UtcNow);
-                        RecordCurrentState();
-                        return new SmtpConnectionLease(this, leasedConnection.Id, leasedConnection.Client, clock.UtcNow);
-                    }
-
-                    continue;
-                }
-
-                if (shouldCreateConnection)
-                {
-                    try
-                    {
-                        var pooledConnection = await CreateLeasedConnectionAsync(selectedHost!, cancellationToken).ConfigureAwait(false);
-                        lock (sync)
-                        {
-                            pendingConnectionCreations--;
-                            RegisterSuccessfulConnectionCreation(pooledConnection.HostState);
-                            connections.Add(pooledConnection.Id, pooledConnection);
-                        }
-
-                        metrics.Record(new SmtpPoolMetricEvent(
-                            SmtpMetricNames.PoolConnectionsCreated,
-                            SmtpMetricInstrumentKind.Counter,
-                            1,
-                            pooledConnection.HostState.EndpointKey));
-                        RecordAcquireWaitTime(acquireStartedAt, clock.UtcNow);
-                        RecordCurrentState();
-                        return new SmtpConnectionLease(this, pooledConnection.Id, pooledConnection.Client, clock.UtcNow);
-                    }
-                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                    {
-                        lock (sync)
-                        {
-                            pendingConnectionCreations--;
-                        }
-
-                        throw;
-                    }
-                    catch
-                    {
-                        bool anotherHostEligible;
-                        bool hasLiveConnections;
-
-                        lock (sync)
-                        {
-                            pendingConnectionCreations--;
-                            ApplyReconnectCooldown(selectedHost!, clock.UtcNow);
-                            anotherHostEligible = AnyOtherHostEligibleForCreationUnsafe(selectedHost!, clock.UtcNow);
-                            hasLiveConnections = GetLiveConnectionCountUnsafe() > 0;
-                        }
-
-                        metrics.Record(new SmtpPoolMetricEvent(
-                            SmtpMetricNames.PoolConnectionCreateFailures,
-                            SmtpMetricInstrumentKind.Counter,
-                            1,
-                            selectedHost?.EndpointKey));
-
-                        if (anotherHostEligible)
-                        {
-                            continue;
-                        }
-
-                        if (!hasLiveConnections)
-                        {
-                            throw;
-                        }
-
-                        // A leased connection may still be returned before the deadline, so keep waiting.
-                    }
-                }
-
-                var nextDelay = ComputeWaitDuration(clock.UtcNow, deadline);
-                await WaitForConnectionAvailabilityAsync(nextDelay, availabilitySignal, cancellationToken).ConfigureAwait(false);
             }
+
+            // A factory may ignore cancellation. Its pending reservation remains
+            // owned until its eventual result is rejected/disposed by the core.
+            handedOff = true;
+            if (!cancellationToken.IsCancellationRequested
+                && (timeoutTask.IsCompletedSuccessfully || GetAcquisitionRemaining(acquireStartedAt) <= TimeSpan.Zero))
+            {
+                MarkAcquisitionBudgetExpired(acquisition);
+            }
+            var cancellationTask = acquisitionCts.CancelAsync();
+            _ = CompleteAbandonedAcquisitionAsync(acquisitionTask, acquisitionCts, cancellationTask);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (completed == timeoutTask)
+            {
+                await timeoutTask.ConfigureAwait(false);
+            }
+            ThrowIfDisposed();
+            throw CreateAcquisitionTimeout();
+        }
+        catch (SmtpPoolExhaustedException)
+        {
+            RecordAcquireWaitTime(acquireStartedAt, clock.UtcNow);
+            metrics.Record(new SmtpPoolMetricEvent(
+                SmtpMetricNames.PoolAcquireExhaustedCount,
+                SmtpMetricInstrumentKind.Counter,
+                1));
+            throw;
         }
         finally
         {
+            timerCts.Cancel();
+            if (!handedOff)
+            {
+                acquisitionCts.Dispose();
+            }
             Interlocked.Decrement(ref waitingCallers);
+        }
+    }
+
+    private async Task<SmtpConnectionLease> AcquireLeaseCoreAsync(
+        DateTimeOffset acquireStartedAt,
+        CancellationToken cancellationToken,
+        AcquisitionState acquisition)
+    {
+        await TryEnsureMinimumPoolSizeAsync(cancellationToken, acquireStartedAt, acquisition).ConfigureAwait(false);
+        var reconnectSuppressedRecorded = false;
+
+        while (true)
+        {
+            EnsureAcquisitionAllowed(acquireStartedAt, cancellationToken, acquisition);
+            var availabilitySignal = ObserveConnectionAvailability();
+            await DisposeExpiredIdleConnectionsAsync(cancellationToken).ConfigureAwait(false);
+            EnsureAcquisitionAllowed(acquireStartedAt, cancellationToken, acquisition);
+            var now = clock.UtcNow;
+
+            List<PooledConnection>? brokenConnections = null;
+            Guid? reusableConnectionId = null;
+            HostRuntimeState? selectedHost = null;
+            var shouldCreateConnection = false;
+            var reconnectSuppressed = false;
+
+            lock (sync)
+            {
+                EnsureAcquisitionAllowed(acquireStartedAt, cancellationToken, acquisition);
+                while (idleConnectionIds.Count > 0)
+                {
+                    var candidateId = idleConnectionIds.Dequeue();
+                    if (!connections.TryGetValue(candidateId, out var candidate))
+                    {
+                        continue;
+                    }
+                    if (IsConnectionUnusable(candidate))
+                    {
+                        brokenConnections = [candidate];
+                        connections.Remove(candidateId);
+                        pendingConnectionDisposals++;
+                        // Settle this owned disposal before reserving another
+                        // creation or leasing a second candidate across awaits.
+                        break;
+                    }
+                    candidate.IsLeased = true;
+                    reusableConnectionId = candidateId;
+                    break;
+                }
+
+                if (reusableConnectionId is null && brokenConnections is null)
+                {
+                    var liveConnections = GetLiveConnectionCountUnsafe();
+                    if (liveConnections < options.MaxPoolSize && TrySelectHostForCreation(now, out selectedHost))
+                    {
+                        pendingConnectionCreations++;
+                        BeginCreationUnsafe(acquisition, selectedHost!);
+                        shouldCreateConnection = true;
+                    }
+                    else if (liveConnections < options.MaxPoolSize)
+                    {
+                        reconnectSuppressed = true;
+                    }
+                }
+            }
+
+            if (reconnectSuppressed)
+            {
+                if (!reconnectSuppressedRecorded)
+                {
+                    metrics.Record(new SmtpPoolMetricEvent(
+                        SmtpMetricNames.PoolReconnectSuppressed,
+                        SmtpMetricInstrumentKind.Counter,
+                        1));
+                    reconnectSuppressedRecorded = true;
+                }
+            }
+            else
+            {
+                reconnectSuppressedRecorded = false;
+            }
+
+            if (brokenConnections is not null)
+            {
+                foreach (var broken in brokenConnections)
+                {
+                    await DisposeConnectionAndReleaseCapacityAsync(broken, CancellationToken.None).ConfigureAwait(false);
+                }
+                await TryEnsureMinimumPoolSizeAsync(cancellationToken, acquireStartedAt, acquisition).ConfigureAwait(false);
+                continue;
+            }
+
+            if (reusableConnectionId is not null)
+            {
+                PooledConnection? leasedConnection;
+                lock (sync)
+                {
+                    connections.TryGetValue(reusableConnectionId.Value, out leasedConnection);
+                }
+                if (leasedConnection is null)
+                {
+                    continue;
+                }
+                if (await ValidateLeasedConnectionAsync(leasedConnection, cancellationToken).ConfigureAwait(false))
+                {
+                    bool canReturn;
+                    lock (sync)
+                    {
+                        canReturn = !disposed && !cancellationToken.IsCancellationRequested
+                            && !acquisition.BudgetExpired && GetAcquisitionRemaining(acquireStartedAt) > TimeSpan.Zero
+                            && connections.ContainsKey(leasedConnection.Id);
+                    }
+                    if (!canReturn)
+                    {
+                        await ReturnLeaseAsync(leasedConnection.Id, false, clock.UtcNow, CancellationToken.None).ConfigureAwait(false);
+                        EnsureAcquisitionAllowed(acquireStartedAt, cancellationToken, acquisition);
+                        continue;
+                    }
+                    RecordCurrentState();
+                    return new SmtpConnectionLease(this, leasedConnection.Id, leasedConnection.Client, clock.UtcNow);
+                }
+                continue;
+            }
+
+            if (shouldCreateConnection)
+            {
+                PooledConnection pooledConnection;
+                try
+                {
+                    // Only factory failure belongs to this catch boundary.
+                    pooledConnection = await CreateLeasedConnectionAsync(selectedHost!, cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    ReleaseCanceledCreation(selectedHost!, acquisition);
+                    throw;
+                }
+                catch
+                {
+                    bool anotherHostEligible;
+                    bool hasLiveConnections;
+                    bool recordFailure;
+                    lock (sync)
+                    {
+                        pendingConnectionCreations--;
+                        recordFailure = RegisterCreationFailureUnsafe(selectedHost!, acquisition, cancellationToken);
+                        CompleteCreationUnsafe(acquisition);
+                        anotherHostEligible = AnyOtherHostEligibleForCreationUnsafe(selectedHost!, clock.UtcNow);
+                        hasLiveConnections = GetLiveConnectionCountUnsafe() > 0;
+                    }
+                    SignalConnectionAvailable();
+                    if (recordFailure)
+                    {
+                        RecordConnectionCreationFailure(selectedHost!);
+                    }
+                    if (anotherHostEligible)
+                    {
+                        continue;
+                    }
+                    if (!hasLiveConnections)
+                    {
+                        throw;
+                    }
+                    var retryWait = ComputeWaitDuration(clock.UtcNow, GetAcquisitionRemaining(acquireStartedAt));
+                    await WaitForConnectionAvailabilityAsync(retryWait, availabilitySignal, cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
+
+                bool accepted;
+                bool recordBudgetFailure;
+                lock (sync)
+                {
+                    pendingConnectionCreations--;
+                    accepted = !disposed && !cancellationToken.IsCancellationRequested
+                        && !acquisition.BudgetExpired && GetAcquisitionRemaining(acquireStartedAt) > TimeSpan.Zero;
+                    recordBudgetFailure = !accepted
+                        && (acquisition.BudgetExpired || GetAcquisitionRemaining(acquireStartedAt) <= TimeSpan.Zero)
+                        && RegisterCreationFailureUnsafe(selectedHost!, acquisition, cancellationToken);
+                    CompleteCreationUnsafe(acquisition);
+                    if (accepted)
+                    {
+                        RegisterSuccessfulConnectionCreation(pooledConnection.HostState);
+                        connections.Add(pooledConnection.Id, pooledConnection);
+                    }
+                    else
+                    {
+                        // Keep capacity reserved until the rejected client is
+                        // actually disposed, even if its caller already left.
+                        pendingConnectionDisposals++;
+                    }
+                }
+                if (recordBudgetFailure)
+                {
+                    RecordConnectionCreationFailure(selectedHost!);
+                }
+                if (!accepted)
+                {
+                    await DisposeConnectionAndReleaseCapacityAsync(pooledConnection, CancellationToken.None).ConfigureAwait(false);
+                    EnsureAcquisitionAllowed(acquireStartedAt, cancellationToken, acquisition);
+                    throw CreateAcquisitionTimeout();
+                }
+                metrics.Record(new SmtpPoolMetricEvent(
+                    SmtpMetricNames.PoolConnectionsCreated,
+                    SmtpMetricInstrumentKind.Counter,
+                    1,
+                    pooledConnection.HostState.EndpointKey));
+                RecordCurrentState();
+                return new SmtpConnectionLease(this, pooledConnection.Id, pooledConnection.Client, clock.UtcNow);
+            }
+
+            var nextDelay = ComputeWaitDuration(clock.UtcNow, GetAcquisitionRemaining(acquireStartedAt));
+            await WaitForConnectionAvailabilityAsync(nextDelay, availabilitySignal, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private TimeSpan GetAcquisitionRemaining(DateTimeOffset startedAt)
+    {
+        var elapsed = clock.UtcNow - startedAt;
+        return options.AcquireTimeout - (elapsed < TimeSpan.Zero ? TimeSpan.Zero : elapsed);
+    }
+
+    private void EnsureAcquisitionAllowed(DateTimeOffset startedAt, CancellationToken cancellationToken, AcquisitionState? acquisition = null)
+    {
+        ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
+        if (acquisition?.BudgetExpired == true || GetAcquisitionRemaining(startedAt) <= TimeSpan.Zero)
+        {
+            throw CreateAcquisitionTimeout();
+        }
+    }
+
+    private static SmtpPoolExhaustedException CreateAcquisitionTimeout()
+        => new("Timed out while waiting for an SMTP connection lease.");
+
+    private void ReleaseCanceledCreation(HostRuntimeState host, AcquisitionState? acquisition)
+    {
+        bool recordFailure;
+        lock (sync)
+        {
+            pendingConnectionCreations--;
+            recordFailure = acquisition?.BudgetExpired == true
+                && RegisterCreationFailureUnsafe(host, acquisition, CancellationToken.None);
+            CompleteCreationUnsafe(acquisition);
+        }
+        SignalConnectionAvailable();
+        if (recordFailure)
+        {
+            RecordConnectionCreationFailure(host);
+        }
+    }
+
+    private static void BeginCreationUnsafe(AcquisitionState? acquisition, HostRuntimeState host)
+    {
+        if (acquisition is not null)
+        {
+            acquisition.CreatingHost = host;
+            acquisition.CreationFailureRecorded = false;
+        }
+    }
+
+    private static void CompleteCreationUnsafe(AcquisitionState? acquisition)
+    {
+        if (acquisition is not null)
+        {
+            acquisition.CreatingHost = null;
+        }
+    }
+
+    private bool RegisterCreationFailureUnsafe(
+        HostRuntimeState host,
+        AcquisitionState? acquisition,
+        CancellationToken callerCancellationToken)
+    {
+        var callerToken = acquisition?.CallerCancellationToken ?? callerCancellationToken;
+        if (disposed || callerToken.IsCancellationRequested || acquisition?.CreationFailureRecorded == true)
+        {
+            return false;
+        }
+        ApplyReconnectCooldown(host, clock.UtcNow);
+        if (acquisition is not null)
+        {
+            acquisition.CreationFailureRecorded = true;
+        }
+        return true;
+    }
+
+    private void MarkAcquisitionBudgetExpired(AcquisitionState acquisition)
+    {
+        HostRuntimeState? failedHost = null;
+        lock (sync)
+        {
+            acquisition.ExpireBudget();
+            if (acquisition.CreatingHost is { } host
+                && RegisterCreationFailureUnsafe(host, acquisition, acquisition.CallerCancellationToken))
+            {
+                failedHost = host;
+            }
+        }
+        // Record suppression before returning the timed-out request, rather
+        // than waiting for an asynchronously cancelled connect to settle.
+        if (failedHost is not null)
+        {
+            RecordConnectionCreationFailure(failedHost);
+            SignalConnectionAvailable();
+        }
+    }
+
+    private void RecordConnectionCreationFailure(HostRuntimeState host)
+    {
+        metrics.Record(new SmtpPoolMetricEvent(
+            SmtpMetricNames.PoolConnectionCreateFailures,
+            SmtpMetricInstrumentKind.Counter,
+            1,
+            host.EndpointKey));
+    }
+
+    private static async Task CompleteAbandonedAcquisitionAsync(
+        Task<SmtpConnectionLease> acquisitionTask,
+        CancellationTokenSource acquisitionCts,
+        Task cancellationTask)
+    {
+        try
+        {
+            var lease = await acquisitionTask.ConfigureAwait(false);
+            await lease.InvalidateAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+#pragma warning disable CA1031 // The original caller has already timed out/cancelled; observe late failure while preserving its outcome.
+        catch
+        {
+        }
+#pragma warning restore CA1031
+        finally
+        {
+            try
+            {
+                await cancellationTask.ConfigureAwait(false);
+            }
+#pragma warning disable CA1031 // Observe cancellation callback faults without replacing the caller's decided outcome.
+            catch
+            {
+            }
+#pragma warning restore CA1031
+            acquisitionCts.Dispose();
         }
     }
 
@@ -395,11 +601,11 @@ internal sealed class SmtpPool : IAsyncDisposable
         RecordCurrentState();
     }
 
-    private async Task TryEnsureMinimumPoolSizeAsync(CancellationToken cancellationToken)
+    private async Task TryEnsureMinimumPoolSizeAsync(CancellationToken cancellationToken, DateTimeOffset? acquireStartedAt = null, AcquisitionState? acquisition = null)
     {
         try
         {
-            await EnsureMinimumPoolSizeAsync(cancellationToken).ConfigureAwait(false);
+            await EnsureMinimumPoolSizeAsync(cancellationToken, acquireStartedAt, acquisition).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -413,7 +619,7 @@ internal sealed class SmtpPool : IAsyncDisposable
 #pragma warning restore CA1031
     }
 
-    private async Task EnsureMinimumPoolSizeAsync(CancellationToken cancellationToken)
+    private async Task EnsureMinimumPoolSizeAsync(CancellationToken cancellationToken, DateTimeOffset? acquireStartedAt = null, AcquisitionState? acquisition = null)
     {
         if (options.MinPoolSize <= 0)
         {
@@ -423,6 +629,10 @@ internal sealed class SmtpPool : IAsyncDisposable
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (acquireStartedAt is { } startedAt)
+            {
+                EnsureAcquisitionAllowed(startedAt, cancellationToken, acquisition);
+            }
             await DisposeExpiredIdleConnectionsAsync(cancellationToken).ConfigureAwait(false);
 
             var now = clock.UtcNow;
@@ -432,6 +642,10 @@ internal sealed class SmtpPool : IAsyncDisposable
             lock (sync)
             {
                 ThrowIfDisposed();
+                if (acquireStartedAt is { } lockedStartedAt)
+                {
+                    EnsureAcquisitionAllowed(lockedStartedAt, cancellationToken, acquisition);
+                }
 
                 if (nextMinPoolRefillAllowedAt is { } nextAllowedAt && now < nextAllowedAt)
                 {
@@ -445,6 +659,7 @@ internal sealed class SmtpPool : IAsyncDisposable
                 if (shouldCreateConnection)
                 {
                     pendingConnectionCreations++;
+                    BeginCreationUnsafe(acquisition, selectedHost!);
                 }
             }
 
@@ -453,42 +668,79 @@ internal sealed class SmtpPool : IAsyncDisposable
                 return;
             }
 
+            PooledConnection pooledConnection;
             try
             {
-                var pooledConnection = await CreateIdleConnectionAsync(selectedHost!, cancellationToken).ConfigureAwait(false);
-
+                pooledConnection = await CreateIdleConnectionAsync(selectedHost!, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                ReleaseCanceledCreation(selectedHost!, acquisition);
+                throw;
+            }
+            catch
+            {
+                bool recordFailure;
                 lock (sync)
                 {
                     pendingConnectionCreations--;
+                    recordFailure = RegisterCreationFailureUnsafe(selectedHost!, acquisition, cancellationToken);
+                    CompleteCreationUnsafe(acquisition);
+                }
+                SignalConnectionAvailable();
+                if (recordFailure)
+                {
+                    RecordConnectionCreationFailure(selectedHost!);
+                }
+                throw;
+            }
+
+            bool accepted;
+            bool recordBudgetFailure;
+            lock (sync)
+            {
+                pendingConnectionCreations--;
+                accepted = !disposed && !cancellationToken.IsCancellationRequested
+                    && acquisition?.BudgetExpired != true
+                    && (acquireStartedAt is null || GetAcquisitionRemaining(acquireStartedAt.Value) > TimeSpan.Zero);
+                recordBudgetFailure = !accepted && acquireStartedAt is { } creationStartedAt
+                    && (acquisition?.BudgetExpired == true || GetAcquisitionRemaining(creationStartedAt) <= TimeSpan.Zero)
+                    && RegisterCreationFailureUnsafe(selectedHost!, acquisition, cancellationToken);
+                CompleteCreationUnsafe(acquisition);
+                if (accepted)
+                {
                     RegisterSuccessfulConnectionCreation(pooledConnection.HostState);
                     connections.Add(pooledConnection.Id, pooledConnection);
                     idleConnectionIds.Enqueue(pooledConnection.Id);
                     nextMinPoolRefillAllowedAt = null;
                 }
-
-                metrics.Record(new SmtpPoolMetricEvent(
-                    SmtpMetricNames.PoolConnectionsCreated,
-                    SmtpMetricInstrumentKind.Counter,
-                    1,
-                    pooledConnection.HostState.EndpointKey));
-                RecordCurrentState();
-            }
-            catch
-            {
-                lock (sync)
+                else
                 {
-                    pendingConnectionCreations--;
-                    ApplyReconnectCooldown(selectedHost!, now);
+                    pendingConnectionDisposals++;
                 }
-
-                metrics.Record(new SmtpPoolMetricEvent(
-                    SmtpMetricNames.PoolConnectionCreateFailures,
-                    SmtpMetricInstrumentKind.Counter,
-                    1,
-                    selectedHost?.EndpointKey));
-
-                throw;
             }
+            if (recordBudgetFailure)
+            {
+                RecordConnectionCreationFailure(selectedHost!);
+            }
+            if (!accepted)
+            {
+                await DisposeConnectionAndReleaseCapacityAsync(pooledConnection, CancellationToken.None).ConfigureAwait(false);
+                ThrowIfDisposed();
+                cancellationToken.ThrowIfCancellationRequested();
+                if (acquireStartedAt is { } rejectedStartedAt)
+                {
+                    EnsureAcquisitionAllowed(rejectedStartedAt, cancellationToken, acquisition);
+                }
+                return;
+            }
+            SignalConnectionAvailable();
+            metrics.Record(new SmtpPoolMetricEvent(
+                SmtpMetricNames.PoolConnectionsCreated,
+                SmtpMetricInstrumentKind.Counter,
+                1,
+                pooledConnection.HostState.EndpointKey));
+            RecordCurrentState();
         }
     }
 
@@ -620,19 +872,17 @@ internal sealed class SmtpPool : IAsyncDisposable
         }
     }
 
-    private TimeSpan ComputeWaitDuration(DateTimeOffset now, DateTimeOffset deadline)
+    private TimeSpan ComputeWaitDuration(DateTimeOffset now, TimeSpan remaining)
     {
-        var remaining = deadline - now;
         if (remaining <= TimeSpan.Zero)
         {
             return TimeSpan.Zero;
         }
 
         var nextAllowedAt = GetNextCreationAllowedAt();
-        var waitUntil = nextAllowedAt is { } candidate && candidate > now
-            ? candidate
-            : now + TimeSpan.FromMilliseconds(25);
-        var cooldownWait = waitUntil - now;
+        var cooldownWait = nextAllowedAt is { } candidate && candidate > now
+            ? candidate - now
+            : TimeSpan.FromMilliseconds(25);
 
         return cooldownWait < remaining ? cooldownWait : remaining;
     }
@@ -850,7 +1100,7 @@ internal sealed class SmtpPool : IAsyncDisposable
             return false;
         }
 
-        var totalWeight = 0;
+        long totalWeight = 0;
         HostRuntimeState? bestHost = null;
         foreach (var candidate in eligibleHosts)
         {
@@ -980,6 +1230,17 @@ internal sealed class SmtpPool : IAsyncDisposable
         }
     }
 
+    private sealed class AcquisitionState(CancellationToken callerCancellationToken)
+    {
+        private int budgetExpired;
+        public CancellationToken CallerCancellationToken { get; } = callerCancellationToken;
+        public bool BudgetExpired => Volatile.Read(ref budgetExpired) != 0;
+        // Creation fields are read and written only under the owning pool lock.
+        public HostRuntimeState? CreatingHost { get; set; }
+        public bool CreationFailureRecorded { get; set; }
+        public void ExpireBudget() => Volatile.Write(ref budgetExpired, 1);
+    }
+
     private sealed class PooledConnection
     {
         public PooledConnection(Guid id, ISmtpClientAdapter client, HostRuntimeState hostState)
@@ -1014,7 +1275,7 @@ internal sealed class SmtpPool : IAsyncDisposable
 
         public DateTimeOffset? NextCreationAllowedAt { get; set; }
 
-        public int CurrentWeight { get; set; }
+        public long CurrentWeight { get; set; }
 
         public int ConsecutiveConnectionFailures { get; set; }
     }

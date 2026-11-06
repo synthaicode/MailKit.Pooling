@@ -6,7 +6,8 @@ internal static class MailKitSecureSocketOptionsParser
 {
     public static SecureSocketOptions Parse(string value)
     {
-        if (Enum.TryParse<SecureSocketOptions>(value, ignoreCase: true, out var parsed))
+        if (Enum.TryParse<SecureSocketOptions>(value, ignoreCase: true, out var parsed)
+            && Enum.IsDefined(parsed))
         {
             return parsed;
         }

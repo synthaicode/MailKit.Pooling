@@ -31,7 +31,10 @@ public sealed class SmtpPoolOptions
     public int MaxPoolSize { get; set; } = 8;
 
     /// <summary>
-    /// Gets or sets the maximum time to wait for a lease.
+    /// Gets or sets the acquisition budget, including refill, connection creation,
+    /// keepalive, and waiting for capacity. Results completing after the budget
+    /// are rejected and cleaned up. Arbitrary synchronous third-party work
+    /// cannot be forcibly interrupted by this asynchronous budget.
     /// </summary>
     public TimeSpan AcquireTimeout { get; set; } = TimeSpan.FromSeconds(15);
 

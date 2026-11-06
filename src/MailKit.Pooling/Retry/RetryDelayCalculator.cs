@@ -1,3 +1,5 @@
+using PooledMailKit.Internal;
+
 namespace PooledMailKit.Retry;
 
 internal static class RetryDelayCalculator
@@ -13,14 +15,14 @@ internal static class RetryDelayCalculator
             throw new ArgumentOutOfRangeException(nameof(retryAttempt), "Retry attempt must be positive.");
         }
 
-        if (baseDelay < TimeSpan.Zero)
+        if (baseDelay < TimeSpan.Zero || baseDelay > TimeoutExecution.MaximumSupportedDelay)
         {
-            throw new ArgumentOutOfRangeException(nameof(baseDelay), "Retry base delay must not be negative.");
+            throw new ArgumentOutOfRangeException(nameof(baseDelay), "Retry base delay must be nonnegative and supported by the timer.");
         }
 
-        if (jitterRatio < 0d)
+        if (!double.IsFinite(jitterRatio) || jitterRatio is < 0d or > 1d)
         {
-            throw new ArgumentOutOfRangeException(nameof(jitterRatio), "Jitter ratio must not be negative.");
+            throw new ArgumentOutOfRangeException(nameof(jitterRatio), "Jitter ratio must be finite and between zero and one.");
         }
 
         if (baseDelay == TimeSpan.Zero)
@@ -33,8 +35,9 @@ internal static class RetryDelayCalculator
             : 1d;
 
         var delayTicks = baseDelay.Ticks * multiplier;
-        var cappedTicks = delayTicks >= long.MaxValue
-            ? long.MaxValue
+        var maximumTicks = TimeoutExecution.MaximumSupportedDelay.Ticks;
+        var cappedTicks = delayTicks >= maximumTicks
+            ? maximumTicks
             : (long) delayTicks;
 
         if (jitterRatio == 0d)
@@ -46,8 +49,8 @@ internal static class RetryDelayCalculator
         var jitteredTicks = cappedTicks * jitterFactor;
         var boundedTicks = jitteredTicks <= 0d
             ? 0L
-            : jitteredTicks >= long.MaxValue
-                ? long.MaxValue
+            : jitteredTicks >= maximumTicks
+                ? maximumTicks
                 : (long) jitteredTicks;
 
         return TimeSpan.FromTicks(boundedTicks);

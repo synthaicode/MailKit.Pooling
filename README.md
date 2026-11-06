@@ -87,7 +87,7 @@ For a synchronous send example with a strict request-path SLA, see `docs/design/
 For intended telemetry design, see `docs/operation/metrics-and-logging.md`.
 For Datadog-specific metric collection setup, see `docs/operation/datadog-metrics.md`.
 For NuGet release preparation, see `docs/release/nuget-publish-checklist.md`.
-For release-facing notes, see `docs/release/0.1.0.md` and `CHANGELOG.md`.
+For current release notes, see `docs/release/0.2.2.md` and `CHANGELOG.md`.
 
 The current telemetry contract includes:
 
@@ -328,3 +328,11 @@ The following areas are still incomplete or intentionally limited:
 - TIME_WAIT observation is implemented for Windows, Linux, and macOS in the stress harness; recorded validation currently covers Windows and Linux, while macOS remains unverified
 - stress/resource scenarios are manual and are not part of normal fast test execution
 - reconnect validation now includes sustained outages, repeated flapping, and multi-host partial outage scenarios, but more advanced fault injection patterns such as latency shaping or packet blackholing still remain future work
+
+## Reliability servicing in 0.2.2
+
+Version 0.2.2 fixes reviewed lifecycle/deadline, optional-metrics exception and
+numeric-boundary defects. The normal NuGet package includes Portable PDB files
+for both target frameworks; a separate symbol package is generated too.
+See `docs/release/0.2.2.md` for compatibility and execution limits, including
+synchronous work that cannot be forcibly interrupted by async deadlines.
