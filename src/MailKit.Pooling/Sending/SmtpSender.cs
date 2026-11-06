@@ -30,7 +30,7 @@ internal sealed class SmtpSender : ISmtpSender
         this.classifier = classifier ?? throw new ArgumentNullException(nameof(classifier));
         this.options = options ?? throw new ArgumentNullException(nameof(options));
         this.clock = clock ?? SystemClock.Instance;
-        this.metrics = metrics ?? NoOpSmtpPoolMetrics.Instance;
+        this.metrics = SafeSmtpPoolMetrics.Wrap(metrics);
     }
 
     public async Task<SmtpSendResult> SendAsync(MimeMessage message, CancellationToken cancellationToken = default)

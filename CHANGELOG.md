@@ -4,6 +4,21 @@ All notable changes to `PooledMailKit` will be documented in this file.
 
 The format is intentionally simple and release-oriented.
 
+## [0.2.2] - 2026-11-06
+
+- Fix late connection ownership after shutdown/timeout, acquisition budgets,
+  warmup notification and failure-time reconnect cooldown.
+- Isolate optional metrics exceptions from accepted sends, resource cleanup,
+  exact connection accounting and batch disposal.
+- Validate finite/defined/runtime-supported configuration values, clamp retry
+  backoff and widen host-weight arithmetic.
+- Service the known PKCS and build-only SourceLink dependency advisories.
+- Include Portable PDBs in the normal package as well as the symbol package.
+- Preserve API and target frameworks; retain documented synchronous-deadline,
+  dynamic-configuration and runtime lifecycle limits.
+
+See `docs/release/0.2.2.md` and the dated verification record.
+
 ## [0.2.0] - 2026-06-12
 
 Error-policy alignment release, derived from a source-level error-policy

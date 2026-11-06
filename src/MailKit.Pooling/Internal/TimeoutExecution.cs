@@ -2,6 +2,9 @@ namespace PooledMailKit.Internal;
 
 internal static class TimeoutExecution
 {
+    // .NET 8/10 timer APIs support at most UInt32.MaxValue - 1 milliseconds.
+    internal static readonly TimeSpan MaximumSupportedDelay = TimeSpan.FromMilliseconds(uint.MaxValue - 1d);
+
     public static async Task ExecuteAsync(
         Func<CancellationToken, Task> operation,
         TimeSpan timeout,
@@ -16,9 +19,9 @@ internal static class TimeoutExecution
             return;
         }
 
-        if (timeout <= TimeSpan.Zero)
+        if (timeout <= TimeSpan.Zero || timeout > MaximumSupportedDelay)
         {
-            throw new ArgumentOutOfRangeException(nameof(timeout), "Timeout must be positive or infinite.");
+            throw new ArgumentOutOfRangeException(nameof(timeout), "Timeout must be positive and supported by the timer, or infinite.");
         }
 
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
