@@ -133,3 +133,48 @@ explicit version input, and the public package repository commit is verified.
 The corrected integration project rebuilt with zero warnings/errors and passed
 all eight integration tests per target, with no skips (16 total). Product source
 is byte-for-byte unchanged from the already reviewed reliability commit.
+
+## Published build and authentication
+
+After the account owner registered a Trusted Publishing policy, PR #5 replaced
+the rejected stored API key with job-local OIDC authentication. Actions run
+[42179977503](https://github.com/synthaicode/MailKit.Pooling/actions/runs/42179977503)
+ran on `cca4c105ff1d5fb695ead04a6ecb3ad40cafa58c`, passed build/tests/pack,
+exchanged the OIDC token successfully and received Created responses for both
+ordinary and symbol package pushes. This was an actual publish, not duplicate
+skipping. CI ran 286 passing tests with 10 manual-stress skips; the earlier local
+manual-enabled run remains 296 passing tests with no skips.
+
+The original `v0.2.2` tag remains at the first, pre-correction attempt; it was
+not rewritten. The actual 0.2.2 published build is the main commit above,
+selected through the existing workflow's explicit version input. Its product
+source is unchanged from the fully reviewed reliability fix; subsequent changes
+corrected the integration harness and publication authentication. Validate the
+package nuspec and SourceLink against the actual published commit, not the old
+tag or a later documentation-only main commit.
+
+## Public package retrieval and consumer verification
+
+The official NuGet version index subsequently listed 0.2.2. Downloaded
+[PooledMailKit 0.2.2](https://www.nuget.org/packages/PooledMailKit/0.2.2)
+from the official flat-container endpoint and checked its nuspec ID/version,
+per-framework dependency groups, repository commit, package members and PDB
+metadata. The **regular nupkg** contains exactly one matching DLL/Portable PDB
+pair for both net8.0 and net10.0, with 41 source documents each. CodeView
+GUID/age/stamp and Portable PDB identity match. Both SourceLink maps point to
+`cca4c105ff1d5fb695ead04a6ecb3ad40cafa58c` in the public source repository.
+
+Public nupkg SHA-256:
+`f66d68da309171f40b524fd933be39f798a9f7d0fb26ee135ad001a39ccdb8bb`.
+A second copy restored by a new consumer into a fresh private package cache has
+the same hash; its package metadata records only
+`https://api.nuget.org/v3/index.json` as source. The consumer configuration clears
+all local/private feeds and references the package, not the product project.
+Both net8.0 and net10.0 consumer runs resolved the public DI/sender API, sent a
+unique message through smtp4dev and observed it through the SMTP server API.
+
+The symbol package upload also received Created, but an interactive debugger's
+symbol-server retrieval was not exercised. Ordinary-package PDB membership and
+identity were verified directly above. Production capacity, arbitrary Windows
+service injection, net10 profiler operation, dynamic option mutation and actual
+consumer runtime servicing remain outside the bounded verification scope.

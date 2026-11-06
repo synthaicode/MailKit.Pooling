@@ -120,9 +120,10 @@ Use it as a release gate, not just as a rough to-do memo.
   | Environment | Leave blank; the job does not use a GitHub environment |
   | Package scope | `PooledMailKit`, new versions |
 
-  The NuGet-side policy has **not yet been configured or verified**. Workflow
-  changes alone do not complete the migration. Verify the policy and a successful
-  token exchange/publish before marking Trusted Publishing ready.
+  Initial policy registration, OIDC token exchange and ordinary/symbol package
+  publication were verified on 2026-11-06 in [Actions run 42179977503](https://github.com/synthaicode/MailKit.Pooling/actions/runs/42179977503).
+  Workflow changes alone do not prove registration. Repeat token exchange and
+  publication verification after changing the policy, owner or workflow.
 
   References: [NuGet Trusted Publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing)
   and [NuGet/login v1.2.0](https://github.com/NuGet/login/blob/v1.2.0/README.md).
